@@ -335,6 +335,7 @@ final class Database {
 				writeln("M: ", m);
 				writeln("x1: ", x1);
 			}
+
 			final switch(header.pageType) with (typeof(header.pageType)) {
 				case emptyPage : 
 				case tableInteriorPage : 
@@ -350,13 +351,13 @@ final class Database {
 			}
 		}
 		
-		string toString(Database db) {
+		string toString(PageRange pages) {
 			import std.conv;
 			auto pageType = header.pageType;
 			string result = to!string(pageType);
 			
 			auto cellPointers = getCellPointerArray();
-
+			std.stdio.writeln("toString called");
 			foreach(cp;cellPointers) {
 				ubyte* printPtr = cast(ubyte*) base + cp;
 				//assert(printPtr - ptrToBase > 5000);
@@ -398,7 +399,7 @@ final class Database {
 							overflowInfo.remainingTotalPayload = cast(uint) payloadSize;
 							overflowInfo.payloadOnPage = payloadOnPage(overflowInfo.remainingTotalPayload);
 							foreach(typeCode;typeCodes) {
-								auto p = extractPayload(&overflowInfo, db.pages, &printPtr, typeCode);						
+								auto p = extractPayload(&overflowInfo, pages, &printPtr, typeCode);						
 								result ~= p.apply!(v => "\t\"" ~ to!string(v) ~ "\",\n");
 							}
 						}
@@ -461,11 +462,11 @@ final class Database {
 		align(1):
 	//	pure :
 			enum BTreePageType : ubyte {
-				emptyPage =			0,
+				emptyPage = 0,
 				indexInteriorPage = 2,
 				tableInteriorPage = 5,
-				indexLeafPage =		10,
-				tableLeafPage =		13
+				indexLeafPage =	10,
+				tableLeafPage =	13
 			}
 
 			BTreePageType _pageType;

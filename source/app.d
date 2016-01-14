@@ -1,7 +1,16 @@
 import std.stdio;
 import sqlited;
 import sqlite.utils;
+import sqlite.misc;
 import std.conv;
+
+void* pageHandler(Database.BTreePage page, Database.PageRange pages) {
+	string toPrint = page.toString(pages); 
+	writeln(toPrint);
+	return null;
+}
+
+
 
 void main(string[] args) {
 	string filename = (args.length > 1 ? args[1] : "example/test.s3db");
@@ -14,42 +23,9 @@ void main(string[] args) {
 //		writeln(db.tables.schemas);
 		writeln(db.pages[page].header);
 
-		if (db.pages[page].pageType == db.BTreePage.BTreePageHeader.BTreePageType.tableLeafPage) {
-			writeln(db.pages[page].toString(db));
-		}
-
-		if (db.pages[page].pageType == db.BTreePage.BTreePageHeader.BTreePageType.tableInteriorPage) {
-			uint[] pageNumbers;
-			auto cpa = db.pages[page].getCellPointerArray;
-			pageNumbers.reserve(cpa.length);
-			 
-			foreach(cp;cpa) {
-				auto cellPointer = (db.rootPage.base + cp);
-				BigEndian!uint leftChildPage = *(cast(uint*)cellPointer);
-				pageNumbers ~= leftChildPage;
-			}
-			pageNumbers ~= db.rootPage.header._rightmostPointer;
-
-			foreach(pageIndex;pageNumbers) {
-				auto _page = db.pages[pageIndex-1];
-				writeln("page [",pageIndex, "] :\n", _page.toString(db));
-
-				if(_page.hasPayload) {
-					foreach(cp;_page.getCellPointerArray) {
-						auto ps = _page.payloadSize(cp);
-						if (ps > _page.usablePageSize) {
-							writeln("found payload bigger then the usable pageSize ", _page.usablePageSize, " < ", ps);
-						}
-					}
-				}
-			}
-		}
-
-
-
-
-
-		//foreach(i; 1.. db.pages.length ){writeln("page [",i,"]\n",db.pages[i]);}
+		handlePage(db.pages[page], db.pages, &pageHandler);
+	
+//foreach(i; 1.. db.pages.length ){writeln("page [",i,"]\n",db.pages[i]);}
 		writeln("pageSize : ",db.header.pageSize);
 //		writeln(db.header);
 //		writeln(db.tables["source_location"]);
