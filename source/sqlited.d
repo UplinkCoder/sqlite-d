@@ -34,7 +34,7 @@ final class Database {
 		 
 		return _usablePageSize;
 	}
-
+	/*
 	auto consolidatePayload(uint nextOverflowPage, PageRange pages, uint usablePageSize) {
 		uint remainingPayloadSize;
 		SkipArray consolidatedPayload;
@@ -47,6 +47,7 @@ final class Database {
 			return [_payload];
 		}
 	}
+	*/ 
 
 	struct PageRange {
 		uint currentOffset = 0;
@@ -75,6 +76,7 @@ final class Database {
 		}
 
 		BTreePage opIndex(uint pageNumber) {
+			assert(pageNumber <= numberOfPages, "Attempting to go to invalid page");
 			return BTreePage(basePtr + (pageSize * pageNumber), usablePageSize, (pageNumber == 0 ? 100 : 0));
 		}
 
@@ -115,7 +117,7 @@ final class Database {
 			}
 			
 			
-			this(VarInt v) pure nothrow {
+			this(VarInt v) /*pure nothrow*/ {
 				if (v > 11) {
 					if (v & 1) {
 						type = SerialTypeCode.SerialTypeCodeEnum._string;
@@ -292,12 +294,16 @@ final class Database {
 			string TypeName;
 			string defaultValue;
 			bool isPrimayKey;
-			bool notNull;
-			
-			
+			bool notNull;		
 		}
-		
-	}	
+	}
+	
+	static struct OverflowInfo {
+		uint payloadOnPage;
+		uint remainingTotalPayload;
+		uint remainingBytesOfPayload;
+		BigEndian!uint nextPageIdx;
+	}
 	
 	/*
 	 * CREATE TABLE sqlite_master(
@@ -318,7 +324,32 @@ final class Database {
 		ubyte* base;
 		const uint usablePageSize;
 		uint offset;
+		
+		uint payloadOnPage(uint payloadSize) pure {
+			auto m = ((usablePageSize-12)*32/255)-23;
+			auto x1 = m + ((payloadSize - m) % (usablePageSize-4));
+			auto x2 = ((usablePageSize-12)*64/255)-23;
+			
+			debug {
+				import std.stdio;
+				writeln("M: ", m);
+				writeln("x1: ", x1);
+			}
+			final switch(header.pageType) with (typeof(header.pageType)) {
+				case emptyPage : 
+				case tableInteriorPage : 
+					assert(0, "has no payload");
+	
+				case tableLeafPage : 
+					return x1;
 
+				case indexInteriorPage :
+				case indexLeafPage :
+					return x1;
+				
+			}
+		}
+		
 		string toString(Database db) {
 			import std.conv;
 			auto pageType = header.pageType;
@@ -332,12 +363,14 @@ final class Database {
 				result ~= "\ncp:" ~ to!string(cp) ~ "\n";
 
 				final switch(header.pageType) with (BTreePageHeader.BTreePageType) {
-					case EmptyPage :
+					case emptyPage :
 						result ~= "This page is Empty or the pointer is bogus\n";
 						break;
 
-					case leafTablePage : {
+					case tableLeafPage : {
+						auto relativeBase = printPtr;
 						auto singlePagePayloadSize = usablePageSize - 35;
+						result ~= "singlePagePayloadSize : " ~ (singlePagePayloadSize).to!string ~ "\n";
 						auto payloadSize = VarInt(printPtr);
 						result ~= "payloadSize: " ~ (payloadSize).to!string ~ "\n";
 						printPtr += payloadSize.length;
@@ -361,40 +394,22 @@ final class Database {
 								//result ~= to!string(cast(Payload.SerialTypeCode)typeCode) ~ ", ";
 							}
 						} else {
-							assert(0,"cannot handle overflowedPayload yet");
-							uint payloadRead;
-							ubyte* nextPagePtr;
+							OverflowInfo overflowInfo;
+							overflowInfo.remainingTotalPayload = cast(uint) payloadSize;
+							overflowInfo.payloadOnPage = payloadOnPage(overflowInfo.remainingTotalPayload);
 							foreach(typeCode;typeCodes) {
-								Payload p;
-								payloadRead += typeCode.length;
-								
-								if (payloadRead > singlePagePayloadSize) {
-									p = extractPayload(&nextPagePtr, pages, &printPtr, typeCode);
-								} else {
-									p = extractPayload(printPtr, typeCode);
-									printPtr += typeCode.length;
-								}
-								
+								auto p = extractPayload(&overflowInfo, db.pages, &printPtr, typeCode);						
 								result ~= p.apply!(v => "\t\"" ~ to!string(v) ~ "\",\n");
 							}
-							// p = extractPayloadIndirected();
-							
 						}
 						
 						result ~= " }\n";
-						if () {
-
-						}
 						
 						printPtr += payloadSize;
 						//result ~= (payload.length) ? (payload).to!string : "";
 					} break;
 
-					case interiorTablePage : {
-						//InteriorTableCellPage {
-					//	BigEndian!uint _leftChildPointer;
-					//	VarInt integerKey;
-					//}
+					case tableInteriorPage : {
 						BigEndian!uint leftChildPointer = *(cast(uint*) printPtr);
 						result ~= "nextPagePointer: " ~ (leftChildPointer).to!string ~ "\n";
 						//auto lc = BTreePage(base, usablePageSize, leftChildPointer);
@@ -404,11 +419,10 @@ final class Database {
 						result ~= "integerKey: " ~ (integerKey).to!string ~ "\n";
 						printPtr += integerKey.length;
 
-						//assert(0,"No support for interiorTablePage");
 					} break;
 
 						
-					case leafIndexPage : {
+					case indexLeafPage : {
 						auto payloadSize = VarInt(cast(ubyte*)printPtr);
 						result ~= "payloadSize: " ~ (payloadSize).to!string ~ "\n";
 						printPtr += payloadSize.length;
@@ -427,17 +441,14 @@ final class Database {
 
 					} break;
 						
-					case interiorIndexPage : {
+					case indexInteriorPage : {
 						BigEndian!uint leftChildPointer = *(cast(uint*) printPtr);
 						result ~= "leftChildPinter: " ~ (leftChildPointer).to!string ~ "\n";
 						VarInt payloadSize;
 						CArray!ubyte _payload;
 						BigEndian!uint _firstOverflowPage;
-						//assert(0,"No support for interiorIndexPage");
-					}
-						
-
-						
+						//assert(0,"No support for indexInteriorPage");
+					} break;
 
 				}
 
@@ -448,16 +459,16 @@ final class Database {
 		
 		static align(1) struct BTreePageHeader {
 		align(1):
-		pure :
+	//	pure :
 			enum BTreePageType : ubyte {
-				EmptyPage =			0,
-				interiorIndexPage = 2,
-				interiorTablePage = 5,
-				leafIndexPage =		10,
-				leafTablePage =		13
+				emptyPage =			0,
+				indexInteriorPage = 2,
+				tableInteriorPage = 5,
+				indexLeafPage =		10,
+				tableLeafPage =		13
 			}
 
-			BTreePageType pageType;
+			BTreePageType _pageType;
 			BigEndian!ushort firstFreeBlock;
 			BigEndian!ushort cellsInPage;
 			BigEndian!ushort startCellContantArea; /// 0 is interpreted as 65536
@@ -465,9 +476,13 @@ final class Database {
 			BigEndian!uint _rightmostPointer;
 
 			bool isInteriorPage() {
-				return (pageType == pageType.interiorIndexPage 
-					|| pageType == pageType.interiorTablePage);
+				return (pageType == pageType.indexInteriorPage 
+					|| pageType == pageType.tableInteriorPage);
 			}
+
+			@property auto pageType() const /*pure*/ {
+				return cast(const) _pageType;
+			} 
 
 			@property BigEndian!uint rightmostPointer() {
 				assert(isInteriorPage, "the rightmost pointer is only in interior nodes");
@@ -502,13 +517,13 @@ final class Database {
 
 		alias BTreePageType = BTreePage.BTreePageHeader.BTreePageType;
 
-		bool hasPayload() {
+		bool hasPayload() const pure {
 			final switch (pageType) with (BTreePageType) {
-				case EmptyPage : return false;
-				case interiorTablePage : return false;
-				case interiorIndexPage : return true;
-				case leafIndexPage : return true;
-				case leafTablePage : return true;
+				case emptyPage : return false;
+				case tableInteriorPage : return false;
+				case indexInteriorPage : return true;
+				case indexLeafPage : return true;
+				case tableLeafPage : return true;
 				
 			}
 		}
@@ -516,15 +531,15 @@ final class Database {
 		auto payloadSize(BigEndian!ushort cp) {
 			assert(hasPayload);
 			final switch (pageType) with (BTreePageType) {
-				case EmptyPage : return VarInt(null);
-				case interiorTablePage : return VarInt(null);
-				case interiorIndexPage : return VarInt(base + cp + uint.sizeof);
-				case leafIndexPage : return VarInt(base + cp);
-				case leafTablePage : return VarInt(base + cp);
+				case emptyPage : return VarInt(null);
+				case tableInteriorPage : return VarInt(null);
+				case indexInteriorPage : return VarInt(base + cp + uint.sizeof);
+				case indexLeafPage : return VarInt(base + cp);
+				case tableLeafPage : return VarInt(base + cp);
 					
 			}
 		}
-
+		
 		static struct  LeafTableCellPage  {
 			VarInt payloadSize;
 			VarInt rowId;
@@ -551,7 +566,7 @@ final class Database {
 		}
 
 		
-		BTreePageHeader header() {
+		BTreePageHeader header() const pure {
 			ubyte* _offset =  (cast(ubyte*)base + offset);
 			return *cast(BTreePageHeader*) _offset;
 		}
@@ -565,7 +580,7 @@ final class Database {
 			return CArray!(BigEndian!ushort).toArray(arrayPos, header().cellsInPage);
 		}
 
-		BTreePageHeader.BTreePageType pageType () {
+		BTreePageHeader.BTreePageType pageType () const pure {
 			return(header()).pageType;
 		}
 
@@ -582,14 +597,87 @@ final class Database {
 			return serialTypeCodes;
 		}
 		
-		Payload extractPayload(ubyte** nextPagePtr,
+		Payload extractPayload(
+			OverflowInfo* overflowInfo,
 			PageRange pages,
-			ubyte** printPtr,
+			ubyte** startPayload,
 			Payload.SerialTypeCode typeCode) {
-				if (*nextPagePtr) {
-					
+			
+			static void gotoNextPage(OverflowInfo* overflowInfo, PageRange pages, ubyte** startPayload) {
+				if (auto nextPageIdx = overflowInfo.nextPageIdx) {
+					debug {
+						import std.stdio;
+						writeln("going to next Page ...\n", nextPageIdx, *overflowInfo);
+					}
+					auto nextPage = pages[nextPageIdx - 1];
+					overflowInfo.payloadOnPage = nextPage.usablePageSize;
+					overflowInfo.nextPageIdx = *cast(uint*)(nextPage.base);
+					*startPayload = nextPage.base + uint.sizeof;
+				} else {
+					assert(0, "No next page to go to");
 				}
+			}
+
+			
+			if (typeCode.length <= overflowInfo.payloadOnPage) {
+				overflowInfo.payloadOnPage -= typeCode.length;
+				overflowInfo.remainingTotalPayload -= typeCode.length;
 				
+				auto oldStartPayload = *startPayload;
+				*startPayload += typeCode.length;
+				if (overflowInfo.payloadOnPage == 0 && overflowInfo.remainingTotalPayload > 0) {
+					overflowInfo.nextPageIdx = *cast(uint*)*startPayload;
+					debug {
+						import std.stdio;
+						writeln("nextPageIdx: ",overflowInfo.nextPageIdx);
+					}
+					gotoNextPage(overflowInfo, pages, startPayload);
+				}
+								
+				return extractPayload(oldStartPayload, typeCode);
+			} else {
+				// We need to consolidate the Payload here...
+				// let's assume SQLite is sane and does not split primitive types in the middle
+				alias et = Payload.SerialTypeCode.SerialTypeCodeEnum;
+				assert(typeCode.type == et.blob || typeCode.type  == et._string);
+			
+				auto remainingBytesOfPayload = typeCode.length;
+				ubyte[] _payloadBuffer;
+				_payloadBuffer.reserve(typeCode.length);
+				
+				
+				
+				for(;;) {
+					import std.algorithm : min;
+					auto readBytes = min(overflowInfo.payloadOnPage, remainingBytesOfPayload);
+					debug { 
+						import std.stdio;
+						writeln("readBytes : ", readBytes); 
+					}
+					remainingBytesOfPayload -= readBytes;
+					overflowInfo.remainingTotalPayload -= readBytes;
+					overflowInfo.payloadOnPage -= readBytes;
+
+					_payloadBuffer ~= (*startPayload)[0 .. readBytes];
+					*startPayload += readBytes;
+				
+					if (remainingBytesOfPayload == 0) {
+						return extractPayload(_payloadBuffer.ptr, typeCode);
+					} else {
+						if (!overflowInfo.nextPageIdx) {
+							overflowInfo.nextPageIdx = *cast(uint*)*startPayload;
+						
+							debug {
+								import std.stdio;
+								writeln(cast(string)(*startPayload-60)[0..16]);
+								writeln("nextPageIdx: ",overflowInfo.nextPageIdx);
+							}
+							assert(overflowInfo.nextPageIdx, "No next Page after overflowed Payload");
+						}
+						gotoNextPage(overflowInfo, pages, startPayload);
+					}
+				}
+			}			
 		}
 		
 		Payload extractPayload(ubyte* startPayload, Payload.SerialTypeCode typeCode) {
@@ -669,6 +757,21 @@ auto apply(alias handler)(Database.Payload p) {
 }
 
 
-auto getAs(T)(Row r) {
+auto getAs(T)(Payload p) {
+	return apply!(a => cast(T) a)(p);
+}
+
+auto getAs(T)(Row r, uint payloadIndex) {
+	return r[payloadIndex].getAs!T();
+}
+
+auto getAs(T)(Row r, TableSchema s, string colName) {
+	return r.getAs!T(s.getPayloadIndex(colName));
+}
+
+unittest {
+	Payload p;
+	p.typeCode = Payload.SerialTypeCodeEnum.bool_true;
 	
+	assert(p.getAs!(int) == 1);
 }

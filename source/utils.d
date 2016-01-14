@@ -93,7 +93,7 @@ struct SkipArray(T) if (isRandomAccessRange!(ElementType!T)) {
 	const(ElementType!T)[] arrays;
 	size_t _length;
 
-	@property const(size_t) length() {
+	@property const(size_t) length() const pure {
 		return cast(const) _length;
 	}
 	
@@ -102,7 +102,7 @@ struct SkipArray(T) if (isRandomAccessRange!(ElementType!T)) {
 			arrays ~= rhs;
 			_length += rhs.length;
 		} else {
-			assert(0, "Operator " ~ op ~ " not supported")
+			assert(0, "Operator " ~ op ~ " not supported");
 		}
 	}
 	

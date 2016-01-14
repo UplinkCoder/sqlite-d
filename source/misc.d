@@ -19,7 +19,7 @@ import std.algorithm;
 		}
 		return result;
 	}
-
+/*
 auto handlePage(Database.PageRange pages, Database.BTreePage page,void* function(Database.BTreePage) pageHandler = ((page){writeln(page);return null;})) {
 
 	if (page.pageType == Database.BTreePage.BTreePageHeader.BTreePageType.leafTablePage) {
@@ -52,3 +52,4 @@ auto handlePage(Database.PageRange pages, Database.BTreePage page,void* function
 			}
 		}
 }
+*/

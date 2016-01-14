@@ -1,23 +1,26 @@
 import std.stdio;
 import sqlited;
 import sqlite.utils;
+import std.conv;
 
 void main(string[] args) {
-	string filename = (args.length == 2 ? args[1] : "example/test.s3db");
+	string filename = (args.length > 1 ? args[1] : "example/test.s3db");
+	auto page = (args.length > 2 ? parse!(int)(args[2]) : 0);
+
 	writefln("opening file %s", filename); 
 	auto db = new Database(filename);
 	if (db !is null) {
 		writeln("it appears to be a database");
 //		writeln(db.tables.schemas);
-		writeln(db.rootPage.header);
+		writeln(db.pages[page].header);
 
-		if (db.rootPage.pageType == db.BTreePage.BTreePageHeader.BTreePageType.leafTablePage) {
-			writeln(db.rootPage.toString(db));
+		if (db.pages[page].pageType == db.BTreePage.BTreePageHeader.BTreePageType.tableLeafPage) {
+			writeln(db.pages[page].toString(db));
 		}
 
-		if (db.rootPage.pageType == db.BTreePage.BTreePageHeader.BTreePageType.interiorTablePage) {
+		if (db.pages[page].pageType == db.BTreePage.BTreePageHeader.BTreePageType.tableInteriorPage) {
 			uint[] pageNumbers;
-			auto cpa = db.rootPage.getCellPointerArray;
+			auto cpa = db.pages[page].getCellPointerArray;
 			pageNumbers.reserve(cpa.length);
 			 
 			foreach(cp;cpa) {
@@ -28,14 +31,14 @@ void main(string[] args) {
 			pageNumbers ~= db.rootPage.header._rightmostPointer;
 
 			foreach(pageIndex;pageNumbers) {
-				auto page = db.pages[pageIndex-1];
-				writeln("page [",pageIndex, "] :\n", page.toString(db));
+				auto _page = db.pages[pageIndex-1];
+				writeln("page [",pageIndex, "] :\n", _page.toString(db));
 
-				if(page.hasPayload) {
-					foreach(cp;page.getCellPointerArray) {
-						auto ps = page.payloadSize(cp);
-						if (ps > page.usablePageSize) {
-							writeln("found payload bigger then the usable pageSize ", page.usablePageSize, " < ", ps);
+				if(_page.hasPayload) {
+					foreach(cp;_page.getCellPointerArray) {
+						auto ps = _page.payloadSize(cp);
+						if (ps > _page.usablePageSize) {
+							writeln("found payload bigger then the usable pageSize ", _page.usablePageSize, " < ", ps);
 						}
 					}
 				}

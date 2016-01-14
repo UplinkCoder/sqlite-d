@@ -13,6 +13,24 @@ auto getDelim(char c) {
 }
 
 import std.algorithm;
+auto skipWhiteSpace(const ref string _string) {
+	static struct Result {
+		string result;
+		uint length;
+	}
+
+	Result result;
+
+	import std.ascii : isWhite;
+	while(isWhite(_string[result.length++])) {}
+
+	result.length--;
+	result.result = _string[result.length .. $];
+
+	return result;
+}
+/+
+
 auto parseCreateTable(string sql) pure {
 	sql = sql["CREATE TABLE ".length .. $];
 	auto delim = getDelim(sql[0]);
@@ -29,7 +47,7 @@ auto parseCreateTable(string sql) pure {
 	sql = sql[pos .. $];
 
 	pos = sql.countUntil('(');
-	while(sql[pos .. pos+1] != ')')
+	while(sql[pos] != ')') {
 		auto res = parseColum(sql[pos .. $]);
 		pos += res.length;
 		colums ~= res.colum;
@@ -41,7 +59,7 @@ auto parseCreateTable(string sql) pure {
 auto parseColum(string sql) pure {
 	Colum col;
 
-	SkipWhitespaceResult res = sql.skipWhitespace();
+	auto res = sql.skipWhitespace();
 	sql = res.result;
 	auto length = res.length;
 	
@@ -68,3 +86,4 @@ auto parseColum(string sql) pure {
 	}
 	
 }
++/
