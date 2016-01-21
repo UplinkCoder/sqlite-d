@@ -616,14 +616,14 @@ final class Database {
 				alias et = Payload.SerialTypeCode.SerialTypeCodeEnum;
 				assert(typeCode.type == et.blob || typeCode.type  == et._string);
 			
-				auto remainingBytesOfPayload = typeCode.length;
+				auto remainingBytesOfPayload = cast(uint)typeCode.length;
 				ubyte[] _payloadBuffer;
-				_payloadBuffer.reserve(typeCode.length);
+				_payloadBuffer.reserve(cast(uint)typeCode.length);
 				
 				
 				for(;;) {
 					import std.algorithm : min;
-					auto readBytes = min(overflowInfo.payloadOnPage, remainingBytesOfPayload);
+					auto readBytes = cast(uint) min(overflowInfo.payloadOnPage, remainingBytesOfPayload);
 					debug { 
 						import std.stdio;
 						writeln("readBytes : ", readBytes); 
@@ -683,10 +683,10 @@ final class Database {
 					p.float64 = *cast(double*)startPayload;
 					break;
 				case typeof(typeCode).blob :
-					p.blob = cast(ubyte[])startPayload[0 .. typeCode.length];
+					p.blob = cast(ubyte[])startPayload[0 .. cast(uint)typeCode.length];
 					break;
 				case typeof(typeCode)._string :
-					p._string = cast(string)startPayload[0 .. typeCode.length];
+					p._string = cast(string)startPayload[0 .. cast(uint)typeCode.length];
 					break;
 				
 				case typeof(typeCode).NULL :
