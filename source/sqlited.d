@@ -30,8 +30,7 @@ final class Database {
 	}	
 
 	uint usablePageSize() {
-		uint _usablePageSize = cachedHeader.pageSize - cast(uint)BTreePage.BTreePageHeader.sizeof - cachedHeader.reserved;
-		 
+		uint _usablePageSize = cachedHeader.pageSize - cachedHeader.reserved;
 		return _usablePageSize;
 	}
 	/*
@@ -54,27 +53,18 @@ final class Database {
 		ubyte* basePtr;
 		const uint pageSize;
 		const uint usablePageSize;
+		
 		const uint numberOfPages;
 		uint pageIndex;
 
-		@property uint length() {
+		@property uint length() const {
 			return numberOfPages;
 		}
 
 		bool empty() {
 			return (pageIndex > numberOfPages);
 		}
-
-		void popFront() {
-			assert(!empty, "Database is either truncated or you are out of bounds");
-			pageIndex++;
-			currentOffset = pageIndex * pageSize;
-		}
-
-		BTreePage front() {
-			return BTreePage(basePtr + currentOffset, usablePageSize, (pageIndex == 0 ? 100 : 0));
-		}
-
+	
 		BTreePage opIndex(uint pageNumber) {
 			assert(pageNumber <= numberOfPages, "Attempting to go to invalid page");
 			return BTreePage(basePtr + (pageSize * pageNumber), usablePageSize, (pageNumber == 0 ? 100 : 0));
@@ -91,8 +81,6 @@ final class Database {
 		
 	import std.range;
 	static assert(hasLength!PageRange);
-
-
 
 	static struct Payload {
 		alias SerialTypeCodeEnum = SerialTypeCode.SerialTypeCodeEnum;
@@ -127,7 +115,7 @@ final class Database {
 						length = (v-12) / 2;
 					}
 				} else {
-					type = cast(SerialTypeCode.SerialTypeCodeEnum) v;
+					type = cast(SerialTypeCodeEnum) v;
 					final switch (type) with(SerialTypeCodeEnum) {
 						case NULL : length = 0;
 							break;
@@ -176,13 +164,13 @@ final class Database {
 		alias type = typeCode.type;
 	}
 	
-	struct Row {
+	static struct Row {
 		Payload[] colums;
 	//	TableSchema* schema;
 		alias colums this;
 	}
 	
-	struct Table {
+	static struct Table {
 		TableSchema schema;
 		Row[] rows;
 	}
@@ -197,9 +185,9 @@ final class Database {
 		// ALL NUMBERS ARE BIGENDIAN
 		static {
 			enum TextEncoding : uint {
-				utf8 = 		bigEndian(1),
-				utf16le = 	bigEndian(2),
-				utf16be = 	bigEndian(3)
+				utf8 = bigEndian(1),
+				utf16le = bigEndian(2),
+				utf16be = bigEndian(3)
 			}
 			
 			enum SchemaFormat : uint {
@@ -299,10 +287,20 @@ final class Database {
 	}
 	
 	static struct OverflowInfo {
+		uint nextPageIdx;
+		uint remainingBytesOfPayload;
 		uint payloadOnPage;
 		uint remainingTotalPayload;
-		uint remainingBytesOfPayload;
-		BigEndian!uint nextPageIdx;
+
+		string toString() {
+			import std.stdio;
+			return std.format.format("
+	nextPageIdx: %d
+	remainingBytesOfPayload: %d
+	payloadOnPage: %d
+	remainingTotalPayload %d",
+		 nextPageIdx, remainingBytesOfPayload, payloadOnPage, remainingTotalPayload);
+		}
 	}
 	
 	/*
@@ -322,17 +320,22 @@ final class Database {
 
 	static struct BTreePage {
 		ubyte* base;
-		const uint usablePageSize;
-		uint offset;
+		const uint _usablePageSize;
 		
+		uint offset;
+		@property const uint usablePageSize() pure {
+			return _usablePageSize /*- headerSize()*/;
+		}
 		uint payloadOnPage(uint payloadSize) pure {
 			auto m = ((usablePageSize-12)*32/255)-23;
+			import std.algorithm : min;
 			auto x1 = m + ((payloadSize - m) % (usablePageSize-4));
 			auto x2 = ((usablePageSize-12)*64/255)-23;
 			
 			debug {
 				import std.stdio;
 				writeln("M: ", m);
+				writeln("payloadSize: ", payloadSize);
 				writeln("x1: ", x1);
 			}
 
@@ -342,11 +345,11 @@ final class Database {
 					assert(0, "has no payload");
 	
 				case tableLeafPage : 
-					return x1;
+					return min(usablePageSize - 35, x1);
 
 				case indexInteriorPage :
 				case indexLeafPage :
-					return x1;
+					return min(x1, x2);
 				
 			}
 		}
@@ -357,7 +360,6 @@ final class Database {
 			string result = to!string(pageType);
 			
 			auto cellPointers = getCellPointerArray();
-			std.stdio.writeln("toString called");
 			foreach(cp;cellPointers) {
 				ubyte* printPtr = cast(ubyte*) base + cp;
 				//assert(printPtr - ptrToBase > 5000);
@@ -392,12 +394,12 @@ final class Database {
 								auto p = extractPayload(printPtr, typeCode);
 								result ~= p.apply!(v => "\t\"" ~ to!string(v) ~ "\",\n");
 								printPtr += typeCode.length;
-								//result ~= to!string(cast(Payload.SerialTypeCode)typeCode) ~ ", ";
 							}
 						} else {
 							OverflowInfo overflowInfo;
-							overflowInfo.remainingTotalPayload = cast(uint) payloadSize;
-							overflowInfo.payloadOnPage = payloadOnPage(overflowInfo.remainingTotalPayload);
+							overflowInfo.remainingTotalPayload = cast(uint) (payloadSize - payloadHeaderSize);
+							overflowInfo.payloadOnPage = payloadOnPage(cast(uint) payloadSize);
+							
 							foreach(typeCode;typeCodes) {
 								auto p = extractPayload(&overflowInfo, pages, &printPtr, typeCode);						
 								result ~= p.apply!(v => "\t\"" ~ to!string(v) ~ "\",\n");
@@ -476,12 +478,12 @@ final class Database {
 			ubyte fragmentedFreeBytes;
 			BigEndian!uint _rightmostPointer;
 
-			bool isInteriorPage() {
+			bool isInteriorPage() pure const {
 				return (pageType == pageType.indexInteriorPage 
 					|| pageType == pageType.tableInteriorPage);
 			}
 
-			@property auto pageType() const /*pure*/ {
+			@property auto pageType() const pure {
 				return cast(const) _pageType;
 			} 
 
@@ -540,39 +542,13 @@ final class Database {
 					
 			}
 		}
-		
-		static struct  LeafTableCellPage  {
-			VarInt payloadSize;
-			VarInt rowId;
-			CArray!ubyte _payload;
-			BigEndian!uint _firstOverflowPage; /// Ommited if payload fits on the page
-		}
-
-		static struct InteriorTableCellPage {
-			BigEndian!uint leftChildPointer;
-			VarInt rowid;
-		}
-
-		static struct  LeafIndexCellPage  {
-			VarInt payloadSize;
-			CArray!ubyte _payload;
-			BigEndian!uint firstOverflowPage; /// Ommited if payload fits on the page
-		}
-
-		static struct  InteriorIndexCellHeader  {
-			BigEndian!uint leftChildPointer;
-			VarInt payloadSize;
-			CArray!ubyte _payload;
-			BigEndian!uint _firstOverflowPage; /// Ommited if payload fits on the page
-		}
-
-		
+				
 		BTreePageHeader header() const pure {
 			ubyte* _offset =  (cast(ubyte*)base + offset);
 			return *cast(BTreePageHeader*) _offset;
 		}
 
-		uint headerSize() {
+		uint headerSize() pure const {
 			return 12 - (header.isInteriorPage ? 0 : 4);
 		}
 
@@ -606,13 +582,12 @@ final class Database {
 			
 			static void gotoNextPage(OverflowInfo* overflowInfo, PageRange pages, ubyte** startPayload) {
 				if (auto nextPageIdx = overflowInfo.nextPageIdx) {
+					auto nextPage = pages[nextPageIdx - 1];
+					overflowInfo.nextPageIdx = *(cast(BigEndian!uint*)nextPage.base);
 					debug {
 						import std.stdio;
 						writeln("going to next Page ...\n", nextPageIdx, *overflowInfo);
 					}
-					auto nextPage = pages[nextPageIdx - 1];
-					overflowInfo.payloadOnPage = nextPage.usablePageSize;
-					overflowInfo.nextPageIdx = *cast(uint*)(nextPage.base);
 					*startPayload = nextPage.base + uint.sizeof;
 				} else {
 					assert(0, "No next page to go to");
@@ -621,12 +596,11 @@ final class Database {
 
 			
 			if (typeCode.length <= overflowInfo.payloadOnPage) {
-				overflowInfo.payloadOnPage -= typeCode.length;
 				overflowInfo.remainingTotalPayload -= typeCode.length;
 				
 				auto oldStartPayload = *startPayload;
 				*startPayload += typeCode.length;
-				if (overflowInfo.payloadOnPage == 0 && overflowInfo.remainingTotalPayload > 0) {
+				if (overflowInfo.payloadOnPage - typeCode.length == 0 && overflowInfo.remainingTotalPayload > 0) {
 					overflowInfo.nextPageIdx = *cast(uint*)*startPayload;
 					debug {
 						import std.stdio;
@@ -647,7 +621,6 @@ final class Database {
 				_payloadBuffer.reserve(typeCode.length);
 				
 				
-				
 				for(;;) {
 					import std.algorithm : min;
 					auto readBytes = min(overflowInfo.payloadOnPage, remainingBytesOfPayload);
@@ -657,7 +630,7 @@ final class Database {
 					}
 					remainingBytesOfPayload -= readBytes;
 					overflowInfo.remainingTotalPayload -= readBytes;
-					overflowInfo.payloadOnPage -= readBytes;
+				//	overflowInfo.payloadOnPage -= readBytes;
 
 					_payloadBuffer ~= (*startPayload)[0 .. readBytes];
 					*startPayload += readBytes;
@@ -666,11 +639,13 @@ final class Database {
 						return extractPayload(_payloadBuffer.ptr, typeCode);
 					} else {
 						if (!overflowInfo.nextPageIdx) {
-							overflowInfo.nextPageIdx = *cast(uint*)*startPayload;
-						
+							assert(readBytes);
+							auto afterPayload = *startPayload; 
+							overflowInfo.nextPageIdx = *(cast(BigEndian!uint*)afterPayload);
 							debug {
 								import std.stdio;
-								writeln(cast(string)(*startPayload-60)[0..16]);
+								writeln("uint after payload :", *cast(BigEndian!uint*)afterPayload, "as BigEndian");
+								writeln(cast(ubyte[])(*startPayload-11)[0..64]);
 								writeln("nextPageIdx: ",overflowInfo.nextPageIdx);
 							}
 							assert(overflowInfo.nextPageIdx, "No next Page after overflowed Payload");
@@ -711,7 +686,7 @@ final class Database {
 					p.blob = cast(ubyte[])startPayload[0 .. typeCode.length];
 					break;
 				case typeof(typeCode)._string :
-						p._string = cast(string)startPayload[0 .. typeCode.length];
+					p._string = cast(string)startPayload[0 .. typeCode.length];
 					break;
 				
 				case typeof(typeCode).NULL :
@@ -727,52 +702,88 @@ final class Database {
 
 }
 
-
 auto apply(alias handler)(Database.Payload p) {
-		final switch (p.typeCode.type) with(Database.Payload.SerialTypeCode) {
+		final switch (p.typeCode.type) with(typeof(p.typeCode.type)) {
 			case NULL : 
-				return handler(null);
+					static if (__traits(compiles, handler(null)))
+					 {return handler(null);} 
+				else 
+					{assert(0, "handler cannot take null");}
 			case int8 : 
-				return handler(p.int8);
+				static if (__traits(compiles, handler(p.int8)))
+					 {return handler(p.int8);} 
+				else 
+					{assert(0);}
 			case int16 :
-				return handler(p.int16);
+				static if (__traits(compiles, handler(p.int16)))
+					 {return handler(p.int16);} 
+				else 
+					{assert(0);}
 			case int24 : 
-				return handler(p.int24);
+				static if (__traits(compiles, handler(p.int24)))
+					 {return handler(p.int24);} 
+				else 
+					{assert(0);}
 			case int32 : 
-				return handler(p.int32);
+				static if (__traits(compiles, handler(p.int32)))
+					 {return handler(p.int32);} 
+				else 
+					{assert(0);}
 			case int48 :
-				return handler(p.int48);
+				static if (__traits(compiles, handler(p.int48)))
+					 {return handler(p.int48);} 
+				else 
+					{assert(0);}
 			case int64 :
-				return handler(p.int64);
+				static if (__traits(compiles, handler(p.int64)))
+					 {return handler(p.int64);} 
+				else 
+					{assert(0);}
 			case float64 :
-				return handler(p.float64);
+				static if (__traits(compiles, handler(p.float64)))
+					 {return handler(p.float64);} 
+				else 
+					{assert(0);}
 			case bool_false :
-				return handler(false);
+				static if (__traits(compiles, handler(false)))
+					 {return handler(false);} 
+				else 
+					{assert(0);}
 			case bool_true :
-				return handler(true);
+				static if (__traits(compiles, handler(true)))
+					 {return handler(true);} 
+				else 
+					{assert(0);}
 			case blob : 
-				return handler(p.blob);
+				static if (__traits(compiles, handler(p.blob)))
+					 {return handler(p.blob);} 
+				else 
+					{assert(0);}
 			case _string :
-				return handler(p._string);
+				static if (__traits(compiles, handler(p._string)))
+					 {return handler(p._string);} 
+				else 
+					{assert(0);}
+
 	}
 }
 
-
-auto getAs(T)(Payload p) {
-	return apply!(a => cast(T) a)(p);
+auto getAs(T) (Database.Payload p) {
+	return p.apply!(v => cast(T) v); 
 }
 
-auto getAs(T)(Row r, uint payloadIndex) {
-	return r[payloadIndex].getAs!T();
+auto getAs(T)(Database.Row r, uint columIndex) {
+	return r[columIndex].getAs!T();
 }
 
-auto getAs(T)(Row r, TableSchema s, string colName) {
-	return r.getAs!T(s.getPayloadIndex(colName));
+auto getAs(T)(Database.Row r, Database.TableSchema s, string colName) {
+	return r.getAs!T(s.getColumIndex(colName));
 }
 
 unittest {
-	Payload p;
-	p.typeCode = Payload.SerialTypeCodeEnum.bool_true;
-	
+	Database.Payload p;
+	p.typeCode.type = Database.Payload.SerialTypeCodeEnum.bool_true;
 	assert(p.getAs!(int) == 1);
+	p.typeCode.type = Database.Payload.SerialTypeCodeEnum.bool_false;
+	assert(p.getAs!(int) == 0);
 }
