@@ -415,8 +415,13 @@ struct Database {
 							OverflowInfo overflowInfo;
 							overflowInfo.remainingTotalPayload = cast(
 								uint)(payloadSize - payloadHeaderSize);
-							overflowInfo.payloadOnPage = payloadOnPage(
-								cast(uint) payloadSize);
+							overflowInfo.payloadOnPage = 
+								payloadOnPage(cast(uint) payloadSize);
+							uint payloadOnFirstPage = payloadOnPage(cast(uint) payloadSize) - 14;							
+							debug {
+								import std.stdio;
+								writeln("phs:" ,payloadHeaderSize);
+							}
 
 							foreach (typeCode; typeCodes) {
 								debug {
@@ -427,7 +432,7 @@ struct Database {
 								}
 
 								auto p = extractPayload(&overflowInfo,
-										pages, &printPtr, typeCode);
+										&payloadOnFirstPage, pages, &printPtr, typeCode);
 								result ~= p.apply!(
 									v => "\t\"" ~ to!string(v) ~ "\",\n");
 							}
@@ -575,7 +580,6 @@ struct Database {
 				return true;
 			case tableLeafPage:
 				return true;
-
 			}
 		}
 
@@ -583,16 +587,15 @@ struct Database {
 			assert(hasPayload);
 			final switch (pageType) with (BTreePageType) {
 			case emptyPage:
-				return VarInt(null);
 			case tableInteriorPage:
-				return VarInt(null);
+				assert(0, "page has no payload");
+			
 			case indexInteriorPage:
 				return VarInt(base + cp + uint.sizeof);
 			case indexLeafPage:
 				return VarInt(base + cp);
 			case tableLeafPage:
 				return VarInt(base + cp);
-
 			}
 		}
 
@@ -630,45 +633,43 @@ struct Database {
 		}
 
 		Payload extractPayload(OverflowInfo* overflowInfo,
+				uint* payloadOnFirstPage,
 				PageRange pages, ubyte** startPayload,
 				Payload.SerialTypeCode typeCode) {
 
-			static void gotoNextPage(OverflowInfo* overflowInfo,
-					PageRange pages, ubyte** startPayload) {
-				if (auto nextPageIdx = overflowInfo.nextPageIdx) {
-					auto nextPage = pages[nextPageIdx - 1];
-					overflowInfo.nextPageIdx = *(
-						cast(BigEndian!uint*) nextPage.base);
-					debug {
-						import std.stdio;
+			uint nextPageIdx;
 
-						writeln("going to next Page ...\n",
-								nextPageIdx, *overflowInfo);
-					}
-					*startPayload = nextPage.base + uint.sizeof;
-				} else {
-					assert(0, "No next page to go to");
+			static void gotoNextPage(uint* nextPageIdx,
+					PageRange pages, ubyte** startPayload) {
+				assert(*nextPageIdx != 0, "No next Page to go to");
+		
+				auto nextPage = pages[(*nextPageIdx) - 1];
+				*nextPageIdx = *(cast(BigEndian!uint*) nextPage.base);
+
+				debug {
+					import std.stdio;
+					writeln("going to next Page ...\n",
+							nextPageIdx);
 				}
+
+				*startPayload = nextPage.base + uint.sizeof;
 			}
 
-			if (typeCode.length <= overflowInfo.payloadOnPage) {
-				overflowInfo.remainingTotalPayload -= typeCode.length;
+			if (typeCode.length <= *payloadOnFirstPage) {
+				(*payloadOnFirstPage) -= typeCode.length;
 
 				auto oldStartPayload = *startPayload;
 				*startPayload += typeCode.length;
-				if (overflowInfo.payloadOnPage - typeCode.length == 0
+				if (*payloadOnFirstPage == 0
 						&& overflowInfo.remainingTotalPayload > 0) {
-					overflowInfo.nextPageIdx = *cast(uint*)*startPayload;
-					debug {
-						import std.stdio;
-
-						writeln("nextPageIdx: ", overflowInfo.nextPageIdx);
-					}
-					gotoNextPage(overflowInfo, pages, startPayload);
+					assert(0, "I do not expect us to ever get here" ~
+						"If we ever do, uncomment the two lines below and delete this assert");
+				//	nextPageIdx = *cast(uint*)*startPayload;
+				//	gotoNextPage(&nextPageIdx, pages, startPayload);
 				}
 
 				return extractPayload(oldStartPayload, typeCode);
-			} else {
+			} else { // typeCode.length > overflowInfo.payloadOnPage
 				// We need to consolidate the Payload here...
 				// let's assume SQLite is sane and does not split primitive types in the middle
 				alias et = Payload.SerialTypeCode.SerialTypeCodeEnum;
@@ -678,10 +679,20 @@ struct Database {
 				ubyte[] _payloadBuffer;
 				_payloadBuffer.reserve(cast(uint) typeCode.length);
 
+				assert(*payloadOnFirstPage != 0);
+
+				_payloadBuffer ~= ((*startPayload)[0 .. *payloadOnFirstPage]);
+				*startPayload += *payloadOnFirstPage;
+				remainingBytesOfPayload -= *payloadOnFirstPage;
+				nextPageIdx = 
+					*(cast(BigEndian!uint*) *startPayload);
+
 				for (;;) {
+					gotoNextPage(&nextPageIdx, pages, startPayload);
+
 					import std.algorithm : min;
 
-					auto readBytes = cast(uint) min(overflowInfo.payloadOnPage,
+					auto readBytes = cast(uint) min(_usablePageSize,
 							remainingBytesOfPayload);
 					debug {
 						import std.stdio;
@@ -707,29 +718,9 @@ struct Database {
 							import std.stdio;
 
 							writeln("pB:", cast(string) _payloadBuffer);
-							return extractPayload(_payloadBuffer.ptr, typeCode);
+			
 						}
-					} else {
-						if (!overflowInfo.nextPageIdx) {
-							assert(readBytes);
-							auto afterPayload = *startPayload - 13;
-							overflowInfo.nextPageIdx = *(
-								cast(BigEndian!uint*) afterPayload);
-							debug {
-								import std.stdio;
-
-								writeln("uint after payload :",
-										*cast(BigEndian!uint*) afterPayload,
-										" as BigEndian\t",
-										*cast(uint*) afterPayload, " as uint");
-								writeln(cast(ubyte[])(afterPayload)[0 .. 64]);
-								writeln("nextPageIdx: ",
-										overflowInfo.nextPageIdx);
-							}
-							assert(overflowInfo.nextPageIdx,
-									"No next Page after overflowed Payload");
-						}
-						gotoNextPage(overflowInfo, pages, startPayload);
+						return extractPayload(_payloadBuffer.ptr, typeCode);
 					}
 				}
 			}
@@ -748,35 +739,29 @@ struct Database {
 				p.int16 = *cast(short*) startPayload;
 				break;
 			case typeof(typeCode).int24:
-				p.int24 = (
-					*cast(int*) startPayload) & 0xfff0;
+				p.int24 = (*cast(int*) startPayload) & 0xfff0;
 				break;
 			case typeof(typeCode).int32:
 				p.int32 = *cast(int*) startPayload;
 				break;
 			case typeof(typeCode).int48:
-				p.int48 = (
-					*cast(long*) startPayload) & 0xffffff00;
+				p.int48 = (*cast(long*) startPayload) & 0xffffff00;
 				break;
 			case typeof(typeCode).int64:
 				p.int64 = *cast(long*) startPayload;
 				break;
 			case typeof(typeCode).float64:
-				p.float64 = *cast(
-					double*) startPayload;
+				p.float64 = *cast(double*) startPayload;
 				break;
 			case typeof(typeCode).blob:
-				p.blob = cast(
-					ubyte[]) startPayload[0 .. cast(uint) typeCode.length];
+				p.blob = cast(ubyte[]) startPayload[0 .. cast(uint) typeCode.length];
 				break;
 			case typeof(typeCode)._string:
-				p._string = cast(
-					string) startPayload[0 .. cast(uint) typeCode.length];
+				p._string = cast(string) startPayload[0 .. cast(uint) typeCode.length];
 				break;
 
 			case typeof(typeCode).NULL:
-			case typeof(typeCode)
-					.bool_false:
+			case typeof(typeCode).bool_false:
 			case typeof(typeCode).bool_true:
 					break;
 			}
