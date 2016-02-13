@@ -91,16 +91,16 @@ auto parseColum(string sql) pure {
 	size_t pos = sql.countUntil(delim);
 	bool whitespaceDelim = (delim == ' ') ;
 
-	result.colum.name = (whitespaceDelim ? sql[0 .. pos] : sql[1 .. pos]);
-	sql = sql[pos .. $];
+	result.colum.name = (whitespaceDelim ? sql[0 .. pos+1] : sql[1 .. pos]);
 	result.length += pos + !whitespaceDelim;
+	sql = sql[pos + !whitespaceDelim  .. $];
 
 	res = sql.skipWhiteSpace();
 	sql = res.result;
 	result.length += res.length;
 	
 	pos = sql.countUntil(' ');
-	result.colum.typeName = 	sql[0 .. pos];
+	result.colum.typeName = sql[0 .. pos];
 
 	result.length += pos;
 

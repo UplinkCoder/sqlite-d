@@ -97,7 +97,7 @@ struct SkipArray(T) if (isRandomAccessRange!(ElementType!T)) {
 		return cast(const) _length;
 	}
 	
-	auto opBinary (string op)(const T rhs) {
+	auto opOpAssign (string op)(const T rhs) {
 		static if (op == "~") {
 			arrays ~= rhs;
 			_length += rhs.length;
@@ -138,8 +138,8 @@ static assert(intArrArr[8] == 9);
 static assert(intArrArr[0] == 1);
 
 unittest {
-	auto arr = skipArray(["Hello"]);
-	arr ~= ["beautiful", "world"];
+	auto arr = skipArray([["Hello"]]);
+	arr ~= [["beautiful"], ["world"]];
 	assert(arr.length == 3);
 	
 }

@@ -1,6 +1,6 @@
 {
 	"name": "sqlite-d",
-	"description": "A native SQLite Database driver",
+	"description": "A native SQLite Database reader",
 	"copyright": "Copyright © 2015, Stefan Koch",
 	"authors": ["Stefan Koch"],
 	"dependencies": {

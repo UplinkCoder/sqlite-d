@@ -5,28 +5,25 @@ import sqlite.misc;
 import std.conv;
 
 void* pageHandler(Database.BTreePage page, Database.PageRange pages) {
-	string toPrint = page.toString(pages); 
+	string toPrint = page.header.to!string ~ "\n" ~ page.toString(pages); 
 	writeln(toPrint);
 	return null;
 }
 
 
-
 void main(string[] args) {
 	string filename = (args.length > 1 ? args[1] : "example/test.s3db");
 	auto page = (args.length > 2 ? parse!(int)(args[2]) : 0);
-
 	writefln("opening file %s", filename); 
 	auto db = new Database(filename);
 	if (db !is null) {
 		writeln("it appears to be a database");
-//		writeln(db.tables.schemas);
 		writeln(db.pages[page].header);
+		writeln("pageSize : ",db.header.pageSize);
 
 		handlePage(db.pages[page], db.pages, &pageHandler);
 	
 //foreach(i; 1.. db.pages.length ){writeln("page [",i,"]\n",db.pages[i]);}
-		writeln("pageSize : ",db.header.pageSize);
 //		writeln(db.header);
 //		writeln(db.tables["source_location"]);
 //		writeln(db.pages.front.pageType);

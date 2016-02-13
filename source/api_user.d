@@ -2,7 +2,7 @@ import sqlited;
 
 void _main() {
 	// load a database form file;
-	Database db = new Database("yourdb.sq3");
+	Database db = Database("yourdb.sq3");
 
 //	MyStruct[] deserialized = db.table("MySerialisationTable").deserialize!MyStruct;
 	// list all tables in the db

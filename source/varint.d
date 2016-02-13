@@ -3,7 +3,7 @@ import sqlite.utils;
 
 auto LIKELY(T)(T t) {return t;}
 
-version = Benchmark;
+//version = Benchmark;
 
 version(Benchmark) {
 	import std.datetime;

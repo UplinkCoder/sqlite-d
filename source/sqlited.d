@@ -6,12 +6,12 @@ version = C_compat;
 
 version (C_compat) {
 	extern (C) :
-	Database fromBuffer(ubyte* bufPtr, BigEndian!uint size) {
-		return new Database(bufPtr[0 .. size]);
+	Database fromBuffer(ubyte* bufPtr, uint size) {
+		return Database(bufPtr[0 .. size]);
 	}
 }
 
-final class Database {
+struct Database {
 	string dbFilename;
 	ubyte[] data;
 	uint currentOffset = 0;
@@ -33,20 +33,6 @@ final class Database {
 		uint _usablePageSize = cachedHeader.pageSize - cachedHeader.reserved;
 		return _usablePageSize;
 	}
-	/*
-	auto consolidatePayload(uint nextOverflowPage, PageRange pages, uint usablePageSize) {
-		uint remainingPayloadSize;
-		SkipArray consolidatedPayload;
-		auto overflowPage = pages[nextOverflowPage-1];
-		BigEndian!int next = *cast(int*) overflowPage.base;
-		const (ubyte[]) _payload = overflowPage.base[int.sizeof .. usablePageSize];
-		if (next) {
-			return _payload ~ consolidatePayload(next);
-		} else {
-			return [_payload];
-		}
-	}
-	*/ 
 
 	struct PageRange {
 		uint currentOffset = 0;
@@ -324,8 +310,9 @@ final class Database {
 		
 		uint offset;
 		@property const uint usablePageSize() pure {
-			return _usablePageSize /*- headerSize()*/;
+			return _usablePageSize;
 		}
+
 		uint payloadOnPage(uint payloadSize) pure {
 			auto m = ((usablePageSize-12)*32/255)-23;
 			import std.algorithm : min;
@@ -383,6 +370,7 @@ final class Database {
 						
 						auto payloadHeaderSize = VarInt(printPtr);
 						result ~= "payloadHeaderSize: " ~ (payloadHeaderSize).to!string ~ "\n";
+
 						printPtr += payloadHeaderSize.length;
 
 						auto typeCodes = processPayloadHeader(printPtr, payloadHeaderSize);
@@ -390,7 +378,7 @@ final class Database {
 						
 						result ~= "{ ";
 						if (payloadSize < singlePagePayloadSize) {
-							foreach(typeCode;typeCodes) {
+							foreach(typeCode; typeCodes) {
 								auto p = extractPayload(printPtr, typeCode);
 								result ~= p.apply!(v => "\t\"" ~ to!string(v) ~ "\",\n");
 								printPtr += typeCode.length;
@@ -399,8 +387,13 @@ final class Database {
 							OverflowInfo overflowInfo;
 							overflowInfo.remainingTotalPayload = cast(uint) (payloadSize - payloadHeaderSize);
 							overflowInfo.payloadOnPage = payloadOnPage(cast(uint) payloadSize);
-							
+
 							foreach(typeCode;typeCodes) {
+								debug { 
+									import std.stdio; 
+									writeln("payloadSize - typeCode.length ", payloadSize - typeCode.length); 
+								}
+
 								auto p = extractPayload(&overflowInfo, pages, &printPtr, typeCode);						
 								result ~= p.apply!(v => "\t\"" ~ to!string(v) ~ "\",\n");
 							}
@@ -561,7 +554,7 @@ final class Database {
 			return(header()).pageType;
 		}
 
-		auto processPayloadHeader(ubyte* startPayloadHeader,ulong payloadHeaderSize) {
+		auto processPayloadHeader(ubyte* startPayloadHeader, ulong payloadHeaderSize) {
 			Payload.SerialTypeCode[] serialTypeCodes;
 			serialTypeCodes.reserve(cast(uint) payloadHeaderSize);
 
@@ -626,26 +619,34 @@ final class Database {
 					auto readBytes = cast(uint) min(overflowInfo.payloadOnPage, remainingBytesOfPayload);
 					debug { 
 						import std.stdio;
-						writeln("readBytes : ", readBytes); 
+						writeln("readBytes : ", readBytes);
+						writeln("remainingBytesOfPayload: ", remainingBytesOfPayload); 
 					}
 					remainingBytesOfPayload -= readBytes;
 					overflowInfo.remainingTotalPayload -= readBytes;
-				//	overflowInfo.payloadOnPage -= readBytes;
 
 					_payloadBuffer ~= (*startPayload)[0 .. readBytes];
+					debug {
+						import std.stdio;
+						writeln("isAddedtoPayload: ", cast(string)(*startPayload)[0 .. readBytes]);
+					}
 					*startPayload += readBytes;
 				
 					if (remainingBytesOfPayload == 0) {
-						return extractPayload(_payloadBuffer.ptr, typeCode);
+						debug {
+							import std.stdio;
+							writeln("pB:", cast(string)_payloadBuffer);  
+							return extractPayload(_payloadBuffer.ptr, typeCode);
+						}
 					} else {
 						if (!overflowInfo.nextPageIdx) {
 							assert(readBytes);
-							auto afterPayload = *startPayload; 
+							auto afterPayload = *startPayload-13; 
 							overflowInfo.nextPageIdx = *(cast(BigEndian!uint*)afterPayload);
 							debug {
 								import std.stdio;
-								writeln("uint after payload :", *cast(BigEndian!uint*)afterPayload, "as BigEndian");
-								writeln(cast(ubyte[])(*startPayload-11)[0..64]);
+								writeln("uint after payload :", *cast(BigEndian!uint*)afterPayload, " as BigEndian\t", *cast(uint*)afterPayload, " as uint");
+								writeln(cast(ubyte[])(afterPayload)[0..64]);
 								writeln("nextPageIdx: ",overflowInfo.nextPageIdx);
 							}
 							assert(overflowInfo.nextPageIdx, "No next Page after overflowed Payload");
@@ -768,7 +769,7 @@ auto apply(alias handler)(Database.Payload p) {
 	}
 }
 
-auto getAs(T) (Database.Payload p) {
+auto getAs(T)(Database.Payload p) {
 	return p.apply!(v => cast(T) v); 
 }
 
@@ -787,3 +788,4 @@ unittest {
 	p.typeCode.type = Database.Payload.SerialTypeCodeEnum.bool_false;
 	assert(p.getAs!(int) == 0);
 }
+
