@@ -23,9 +23,21 @@ struct_type[] deserialize(alias struct_type)(Row[] ra) {
 }
 
 /// handlePage is used to itterate over interiorPages transparently
-void handlePage(Database.BTreePage page,
+void* handlePageF(Database.BTreePage page,
 		Database.PageRange pages,
-		void* function(Database.BTreePage, Database.PageRange) pageHandler) {
+		void* function(Database.BTreePage, Database.PageRange, void*) pageHandlerF,
+		void* initialState = null) { 
+		handlePage!(
+			(page, pages) => initialState = pageHandlerF(page, pages, initialState)
+		)(page, pages);
+
+		return initialState;
+}
+/// handlePage is used to itterate over interiorPages transparently
+void handlePage(alias pageHandler)(Database.BTreePage page,
+		Database.PageRange pages) if (is(typeof(pageHandler(page, pages)))) {
+//	typeof(pageHandler(page, pages))[] rv;
+
 	switch (page.pageType) with (Database.BTreePage.BTreePageType) {
 
 	case tableLeafPage: {
@@ -45,7 +57,7 @@ void handlePage(Database.BTreePage page,
 
 			foreach (pageIndex; pageNumbers) {
 				auto _page = pages[pageIndex - 1];
-				handlePage(_page, pages, pageHandler);
+				handlePage!pageHandler(_page, pages);
 			}
 			break;
 		}
@@ -55,4 +67,5 @@ void handlePage(Database.BTreePage page,
 
 		assert(0, "pageType not supported" ~ to!string(page.pageType));
 	}
+
 }

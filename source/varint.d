@@ -19,7 +19,7 @@ version(Benchmark) {
 
 static align(1) struct VarInt {
 	ubyte *byteArray;
-	// pure nothrow @nogc :
+	pure nothrow /*@nogc*/ :
 align(1):
 
 	alias toBeLong this;

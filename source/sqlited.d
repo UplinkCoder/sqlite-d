@@ -52,7 +52,7 @@ struct Database {
 			return (pageIndex > numberOfPages);
 		}
 
-		BTreePage opIndex(uint pageNumber) {
+		BTreePage opIndex(uint pageNumber) pure {
 			assert(pageNumber <= numberOfPages,
 					"Attempting to go to invalid page");
 			return BTreePage(basePtr + (pageSize * pageNumber),
@@ -95,7 +95,7 @@ struct Database {
 				_string = (13)
 			}
 
-			this(VarInt v) /*pure nothrow*/ {
+			this(VarInt v) pure nothrow {
 				if (v > 11) {
 					if (v & 1) {
 						type = SerialTypeCode.SerialTypeCodeEnum._string;
@@ -149,7 +149,7 @@ struct Database {
 			long length;
 		}
 
-		static union {
+		union {
 			byte int8;
 			short int16;
 			int int24;
@@ -250,8 +250,8 @@ struct Database {
 	}
 
 	this(string filename, bool readEntirely = true) {
-		import std.file;
-		import std.stdio;
+		import std.file;	
+	//	import std.stdio;
 
 		auto data = cast(ubyte[]) read(filename);
 		this(data, filename);
@@ -300,9 +300,15 @@ struct Database {
 	 *	 
 	 */
 
-	//Schema[] schema() {
-
-	//}
+	Row[] rows(uint rootpage) {
+		import sqlite.misc;
+		string myData;
+		handlePage!((page, pages) => myData ~= page.toString(pages)) (pages[rootpage - 1], pages);
+	//	Row[] _rows;
+		auto _rp = pages[rootpage - 1];
+		assert(0);	
+		
+	}
 
 	static struct BTreePage {
 		ubyte* base;
@@ -343,6 +349,44 @@ struct Database {
 			}
 		}
 
+		Row[] getRows(PageRange pages) /*pure*/ {
+			auto cellPointers = getCellPointerArray();
+			import std.parallelism;
+			import atomicarray;
+			AtomicArray!Row rows;
+			assert(pageType == BTreePageType.tableLeafPage, "only tableLeafPages are supported for now");
+
+			foreach (cp; parallel(cellPointers)) {
+				rows ~= atomicValue(getRow(cp, pages), cast(uint)cp);
+			}
+
+			return cast(Row[]) rows._data;
+		}
+
+		Row getRow(uint cellPointer, PageRange pages) pure {
+			ubyte* courser = base + cellPointer;
+			Row row;
+
+			auto payloadSize = VarInt(courser);
+			courser += payloadSize.length;
+
+			auto rowId = VarInt(courser);
+			courser += rowId.length;
+
+			
+			auto payloadHeaderSize = VarInt(courser);
+			courser += payloadHeaderSize.length;
+
+			auto typeCodes = processPayloadHeader(courser, payloadHeaderSize);
+			courser += payloadHeaderSize - payloadHeaderSize.length;
+
+			row.colums.length = typeCodes.length;
+			foreach(i, typeCode; typeCodes) {
+				row.colums[i] = extractPayload(courser, typeCode);
+			} 
+			return row;
+		}
+
 		string toString(PageRange pages) {
 			import std.conv;
 
@@ -362,7 +406,6 @@ struct Database {
 					break;
 
 				case tableLeafPage: {
-						auto relativeBase = printPtr;
 						auto singlePagePayloadSize = usablePageSize - 35;
 						result ~= "singlePagePayloadSize : " ~ (
 							singlePagePayloadSize).to!string ~ "\n";
@@ -382,7 +425,10 @@ struct Database {
 
 						auto typeCodes = processPayloadHeader(printPtr,
 								payloadHeaderSize);
-						printPtr += payloadHeaderSize - 1;
+						printPtr += payloadHeaderSize - payloadHeaderSize.length;
+
+						import std.algorithm;
+						assert(typeCodes.map!(tc => tc.length).sum == payloadSize - payloadHeaderSize);
 
 						result ~= "{ ";
 						if (payloadSize < singlePagePayloadSize) {
@@ -594,7 +640,7 @@ struct Database {
 		}
 
 		auto processPayloadHeader(ubyte* startPayloadHeader,
-				ulong payloadHeaderSize) {
+				ulong payloadHeaderSize) pure {
 			Payload.SerialTypeCode[] serialTypeCodes;
 			serialTypeCodes.reserve(cast(uint) payloadHeaderSize);
 
@@ -612,7 +658,7 @@ struct Database {
 			uint* payloadOnFirstPage,
 			uint* nextPageIdx,
 			PageRange pages, ubyte** startPayload,
-			Payload.SerialTypeCode typeCode) {
+			Payload.SerialTypeCode typeCode) pure {
 
 			static void gotoNextPage(uint* nextPageIdx,
 					PageRange pages, ubyte** startPayload) {
@@ -628,7 +674,8 @@ struct Database {
 			}
 
 			if (typeCode.length <= *payloadOnFirstPage) {
-				(*payloadOnFirstPage) -= typeCode.length;
+				*payloadOnFirstPage -= typeCode.length;
+				*remainingTotalPayload -= typeCode.length;
 
 				auto oldStartPayload = *startPayload;
 				*startPayload += typeCode.length;
@@ -654,8 +701,10 @@ struct Database {
 				if (*payloadOnFirstPage != 0) {
 					_payloadBuffer ~= ((*startPayload)[0 .. *payloadOnFirstPage]);
 					*startPayload += *payloadOnFirstPage;
+
 					remainingBytesOfPayload -= *payloadOnFirstPage;
-					remainingTotalPayload -= *payloadOnFirstPage;
+					*remainingTotalPayload -= *payloadOnFirstPage;
+
 					if (*nextPageIdx == 0) {
 						*nextPageIdx = 
 							*(cast(BigEndian!uint*) *startPayload);
@@ -664,6 +713,13 @@ struct Database {
 				}
 
 				for (;;) {
+					if(remainingBytesOfPayload > *remainingTotalPayload) {
+						debug { 
+							import std.stdio;
+							writeln(remainingBytesOfPayload, " > ", *remainingTotalPayload);
+						}
+						
+					}
 					gotoNextPage(nextPageIdx, pages, startPayload);
 					import std.algorithm : min;
 
@@ -683,10 +739,12 @@ struct Database {
 					debug {
 						import std.stdio;
 
-						writeln("isAddedtoPayload: ",
-								cast(ubyte[])(*startPayload)[0 .. readBytes]);
-						writeln("after Payload: ",
-							cast(ubyte[])(*startPayload)[readBytes .. readBytes + uint.sizeof]);
+					//	writeln("isAddedtoPayload: ",
+					//		cast(ubyte[])(*startPayload)[0 .. readBytes]);
+						writeln(stderr, "after Payload: ",
+							*cast(BigEndian!uint*)(*startPayload + readBytes), 
+							"remaingTotalPayload : ", *remainingTotalPayload,
+							"remaingPayload : ", remainingBytesOfPayload);
 					}
 					*startPayload += readBytes;
 
@@ -694,7 +752,7 @@ struct Database {
 						debug {
 							import std.stdio;
 
-							writeln("pB:", cast(string) _payloadBuffer);
+							writeln("pB:", cast(ubyte[]) _payloadBuffer);
 			
 						}
 						*payloadOnFirstPage = usablePageSize - (readBytes + cast(uint)uint.sizeof);
@@ -709,10 +767,9 @@ struct Database {
 		}
 
 		Payload extractPayload(ubyte* startPayload,
-				Payload.SerialTypeCode typeCode) {
+				Payload.SerialTypeCode typeCode) pure {
 			Payload p;
 			p.typeCode = typeCode;
-
 			final switch (typeCode.type) {
 			case typeof(typeCode).int8:
 				p.int8 = *cast(byte*) startPayload;
@@ -745,7 +802,7 @@ struct Database {
 			case typeof(typeCode).NULL:
 			case typeof(typeCode).bool_false:
 			case typeof(typeCode).bool_true:
-					break;
+				break;
 			}
 
 			return p;
