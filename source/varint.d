@@ -95,8 +95,8 @@ align(1):
 		} 
 	}
 
-	version(Benchmark) {} 
-	else {
+	version(Benchmark) {} else 
+	version (DMD) {
 	
 	static assert(_length((cast(ubyte[])[0x6d,0x00]).ptr) == 1);
 	static assert(_length((cast(ubyte[])[0x7f,0x00]).ptr) == 1);

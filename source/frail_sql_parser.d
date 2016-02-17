@@ -9,7 +9,7 @@ proj4text VARCHAR(2048) NOT NULL),
 */
 
 alias lengthType = uint;
-
+pure :
 auto getDelim(char c) {
 	switch(c) {
 		case '[' :

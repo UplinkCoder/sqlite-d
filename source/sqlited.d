@@ -15,9 +15,9 @@ struct Database {
 	string dbFilename;
 	ubyte[] data;
 	uint currentOffset = 0;
-	DatabaseHeader cachedHeader;
+	SQLiteHeader cachedHeader;
 
-	DatabaseHeader header() pure {
+	SQLiteHeader header() pure {
 		return cachedHeader;
 	}
 
@@ -177,7 +177,7 @@ struct Database {
 		Row[] rows;
 	}
 
-	static align(1) struct DatabaseHeader {
+	static align(1) struct SQLiteHeader {
 
 		bool isValid() {
 			return magicString == "SQLite format 3\0";
@@ -265,7 +265,7 @@ struct Database {
 			data = buffer;
 		}
 		dbFilename = filename;
-		auto _header = cast(DatabaseHeader*) buffer.ptr;
+		auto _header = cast(SQLiteHeader*) buffer.ptr;
 		assert(_header.isValid());
 		cachedHeader = *_header;
 	}
@@ -286,25 +286,6 @@ struct Database {
 			string defaultValue;
 			bool isPrimayKey;
 			bool notNull;
-		}
-	}
-
-	static struct OverflowInfo {
-		uint nextPageIdx;
-		uint remainingBytesOfPayload;
-		uint payloadOnPage;
-		uint remainingTotalPayload;
-
-		string toString() {
-			import std.stdio;
-
-			return std.format.format("
-	nextPageIdx: %d
-	remainingBytesOfPayload: %d
-	payloadOnPage: %d
-	remainingTotalPayload %d", nextPageIdx,
-					remainingBytesOfPayload, payloadOnPage,
-					remainingTotalPayload);
 		}
 	}
 
@@ -412,36 +393,30 @@ struct Database {
 								printPtr += typeCode.length;
 							}
 						} else {
-							OverflowInfo overflowInfo;
-							overflowInfo.remainingTotalPayload = cast(
-								uint)(payloadSize - payloadHeaderSize);
-							overflowInfo.payloadOnPage = 
-								payloadOnPage(cast(uint) payloadSize);
-							uint payloadOnFirstPage = payloadOnPage(cast(uint) payloadSize) - 14;							
-							debug {
-								import std.stdio;
-								writeln("phs:" ,payloadHeaderSize);
-							}
+							uint remainingTotalPayload = 
+								cast(uint) (payloadSize);
+
+							uint payloadOnFirstPage = payloadOnPage(cast(uint) payloadSize) - cast(uint) payloadHeaderSize;
+							uint nextPageIdx;
 
 							foreach (typeCode; typeCodes) {
+								auto p = extractPayload(&remainingTotalPayload,
+										&payloadOnFirstPage,
+										&nextPageIdx,
+										pages, &printPtr, typeCode);
+								auto str = p.apply!(v => "\t\"" ~ to!string(v) ~ "\",\n");
 								debug {
 									import std.stdio;
-
-									writeln("payloadSize - typeCode.length ",
-											payloadSize - typeCode.length);
+									writeln(str);
 								}
+								result ~= str;
 
-								auto p = extractPayload(&overflowInfo,
-										&payloadOnFirstPage, pages, &printPtr, typeCode);
-								result ~= p.apply!(
-									v => "\t\"" ~ to!string(v) ~ "\",\n");
 							}
 						}
 
 						result ~= " }\n";
 
 						printPtr += payloadSize;
-						//result ~= (payload.length) ? (payload).to!string : "";
 					}
 					break;
 
@@ -457,8 +432,8 @@ struct Database {
 						result ~= "integerKey: " ~ (integerKey).to!string
 							~ "\n";
 						printPtr += integerKey.length;
-
 					}
+					
 					break;
 
 				case indexLeafPage: {
@@ -483,13 +458,13 @@ struct Database {
 								payloadSize - payloadHeaderSize);
 						printPtr += payloadSize;
 						result ~= (payload.length) ? (payload).to!string : "";
-
+						
 					}
 					break;
 
 				case indexInteriorPage: {
-						BigEndian!uint leftChildPointer = *(
-							cast(uint*) printPtr);
+						BigEndian!uint leftChildPointer = 
+							*(cast(uint*) printPtr);
 						result ~= "leftChildPinter: " ~ (leftChildPointer)
 							.to!string ~ "\n";
 						VarInt payloadSize;
@@ -632,26 +607,23 @@ struct Database {
 			return serialTypeCodes;
 		}
 
-		Payload extractPayload(OverflowInfo* overflowInfo,
-				uint* payloadOnFirstPage,
-				PageRange pages, ubyte** startPayload,
-				Payload.SerialTypeCode typeCode) {
-
-			uint nextPageIdx;
+		Payload extractPayload(
+			uint* remainingTotalPayload,
+			uint* payloadOnFirstPage,
+			uint* nextPageIdx,
+			PageRange pages, ubyte** startPayload,
+			Payload.SerialTypeCode typeCode) {
 
 			static void gotoNextPage(uint* nextPageIdx,
 					PageRange pages, ubyte** startPayload) {
-				assert(*nextPageIdx != 0, "No next Page to go to");
-		
-				auto nextPage = pages[(*nextPageIdx) - 1];
-				*nextPageIdx = *(cast(BigEndian!uint*) nextPage.base);
 
+				assert(*nextPageIdx != 0, "No next Page to go to");
 				debug {
 					import std.stdio;
-					writeln("going to next Page ...\n",
-							nextPageIdx);
+					writeln("goto page : ", *nextPageIdx);
 				}
-
+				auto nextPage = pages[(*nextPageIdx) - 1];
+				*nextPageIdx = *(cast(BigEndian!uint*) nextPage.base);
 				*startPayload = nextPage.base + uint.sizeof;
 			}
 
@@ -661,15 +633,15 @@ struct Database {
 				auto oldStartPayload = *startPayload;
 				*startPayload += typeCode.length;
 				if (*payloadOnFirstPage == 0
-						&& overflowInfo.remainingTotalPayload > 0) {
-					assert(0, "I do not expect us to ever get here" ~
+						&& *remainingTotalPayload > 0) {
+					assert(0, "I do not expect us to ever get here"
 						"If we ever do, uncomment the two lines below and delete this assert");
 				//	nextPageIdx = *cast(uint*)*startPayload;
 				//	gotoNextPage(&nextPageIdx, pages, startPayload);
 				}
 
 				return extractPayload(oldStartPayload, typeCode);
-			} else { // typeCode.length > overflowInfo.payloadOnPage
+			} else { // typeCode.length > payloadOnFirstPage
 				// We need to consolidate the Payload here...
 				// let's assume SQLite is sane and does not split primitive types in the middle
 				alias et = Payload.SerialTypeCode.SerialTypeCodeEnum;
@@ -679,21 +651,25 @@ struct Database {
 				ubyte[] _payloadBuffer;
 				_payloadBuffer.reserve(cast(uint) typeCode.length);
 
-				assert(*payloadOnFirstPage != 0);
-
-				_payloadBuffer ~= ((*startPayload)[0 .. *payloadOnFirstPage]);
-				*startPayload += *payloadOnFirstPage;
-				remainingBytesOfPayload -= *payloadOnFirstPage;
-				nextPageIdx = 
-					*(cast(BigEndian!uint*) *startPayload);
+				if (*payloadOnFirstPage != 0) {
+					_payloadBuffer ~= ((*startPayload)[0 .. *payloadOnFirstPage]);
+					*startPayload += *payloadOnFirstPage;
+					remainingBytesOfPayload -= *payloadOnFirstPage;
+					remainingTotalPayload -= *payloadOnFirstPage;
+					if (*nextPageIdx == 0) {
+						*nextPageIdx = 
+							*(cast(BigEndian!uint*) *startPayload);
+					}
+					*payloadOnFirstPage = 0;
+				}
 
 				for (;;) {
-					gotoNextPage(&nextPageIdx, pages, startPayload);
-
+					gotoNextPage(nextPageIdx, pages, startPayload);
 					import std.algorithm : min;
 
-					auto readBytes = cast(uint) min(_usablePageSize,
+					auto readBytes = cast(uint) min(_usablePageSize - uint.sizeof,
 							remainingBytesOfPayload);
+
 					debug {
 						import std.stdio;
 
@@ -702,14 +678,15 @@ struct Database {
 								remainingBytesOfPayload);
 					}
 					remainingBytesOfPayload -= readBytes;
-					overflowInfo.remainingTotalPayload -= readBytes;
 
 					_payloadBuffer ~= (*startPayload)[0 .. readBytes];
 					debug {
 						import std.stdio;
 
 						writeln("isAddedtoPayload: ",
-								cast(string)(*startPayload)[0 .. readBytes]);
+								cast(ubyte[])(*startPayload)[0 .. readBytes]);
+						writeln("after Payload: ",
+							cast(ubyte[])(*startPayload)[readBytes .. readBytes + uint.sizeof]);
 					}
 					*startPayload += readBytes;
 
@@ -720,6 +697,11 @@ struct Database {
 							writeln("pB:", cast(string) _payloadBuffer);
 			
 						}
+						*payloadOnFirstPage = usablePageSize - (readBytes + cast(uint)uint.sizeof);
+
+						assert(_payloadBuffer.length == typeCode.length);
+						*remainingTotalPayload -= _payloadBuffer.length;
+
 						return extractPayload(_payloadBuffer.ptr, typeCode);
 					}
 				}

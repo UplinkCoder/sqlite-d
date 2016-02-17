@@ -4,7 +4,7 @@ struct BigEndian(T) {
 	T asNative;
 	alias asBigEndian this;
 	nothrow  pure :
-@nogc :
+/*@nogc bswap is not @nogc at 2.066.1 :*/
 	@property T asBigEndian() {
 		return swapIfNeeded(asNative);
 	}
