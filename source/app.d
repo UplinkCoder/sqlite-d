@@ -17,16 +17,16 @@ void* countCellsHandler(Database.BTreePage page, Database.PageRange pages, void*
 	*cast(uint*)currentCount += page.header.cellsInPage;
 	return currentCount;
 }	
-static immutable ubyte[] test_s3db = cast(immutable ubyte[]) import("test.s3db");
-static immutable db = cast(immutable)Database(test_s3db, "");
-static immutable pages =  cast(immutable)db.pages();
-static immutable rp = cast(immutable)pages[0];
+//static immutable ubyte[] test_s3db = cast(immutable ubyte[]) import("test.s3db");
+//static immutable db = cast(immutable)Database(test_s3db, "");
+//static immutable pages =  cast(immutable)db.pages();
+//static immutable rp = cast(immutable)pages[0];
 
-uint ct () { 
-	uint cnt;
-	handlePage!((page) => cnt += page.header.cellsInPage)(cast(Database.BTreePage)rp, db.pages);
-	return cnt;
-}
+//uint ct () { 
+//	uint cnt;
+//	handlePage!((page) => cnt += page.header.cellsInPage)(cast(Database.BTreePage)rp, db.pages);
+//	return cnt;
+//}
 //bool fn_() {
 //	bool result;
 ////	handlePage!(
@@ -36,7 +36,7 @@ uint ct () {
 //}
 
 
-pragma(msg, db.header().pageSize, db.usablePageSize, ct);
+//pragma(msg, db.header().pageSize, db.usablePageSize, ct);
 
 int main(string[] args) {
 	import std.stdio;
@@ -44,7 +44,7 @@ int main(string[] args) {
 //	fn_();
 	string filename = (args.length > 1 ? args[1] : "example/test.s3db");
 	auto page = (args.length > 2 ? parse!(int)(args[2]) : 0);
-//	writefln("opening file %s", filename); 
+	writefln("opening file %s", filename); 
 	auto db = new Database(filename);
 //	static if (is(typeof(db) : typeof(null))) {
 //		auto db = db;
@@ -61,21 +61,27 @@ int main(string[] args) {
 //		handlePageF(db.pages[page], db.pages, &pageHandler);
 		import std.datetime;
 		const _page = db.pages[page];
+		writeln(db.header, db.pages[0].header);
+		handlePage!((page) => writeln(page.pageType))(*db, 0);
 		uint fn() {
 			uint cnt;
 			handlePageF(cast(Database.BTreePage)_page, db.pages, &countCellsHandler, &cnt);
 			return cnt;
 		}
+		 writeln(fn);
 		void fn2() {
 			uint cnt;
-			handlePage!((page) => cnt += page.header.cellsInPage)(cast(Database.BTreePage)_page, db.pages);
+			Database.BTreePage.BTreePageHeader[] headers;
+			handlePage!((page) =>  headers ~= page.header)(cast(Database.BTreePage)_page, db.pages);
+			writeln(headers);
+			writeln(_page.header);
 		}
-		foreach(i;0 .. 32) {
-			auto bm = benchmark!(fn,fn2)(1);
-			writeln(bm[1]-bm[0]);
-			bm = benchmark!(fn,fn2)(4);
-			writeln((bm[1]-bm[0]) / 4);
-		}
+//		foreach(i;0 .. 32) {
+//			auto bm = benchmark!(fn,fn2)(1);
+//			writeln(bm[1]-bm[0]);
+//			bm = benchmark!(fn,fn2)(4);
+//			writeln((bm[1]-bm[0]) / 4);
+//		}
 //	//	writefln("page has %d cells", cellCount);
 //	
 //foreach(i; 1.. db.pages.length ){writeln("page [",i,"]\n",db.pages[i]);}

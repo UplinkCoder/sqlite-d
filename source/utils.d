@@ -3,14 +3,14 @@ module sqlite.utils;
 struct BigEndian(T) {
 	T asNative;
 	alias asBigEndian this;
-	nothrow  pure :
+//	nothrow  pure :
 /*@nogc bswap is not @nogc at 2.066.1 :*/
 	@property T asBigEndian() {
 		return swapIfNeeded(asNative);
 	}
 	
-	@property asBigEndian(U)(U v) if(is(U:T)) {
-		return asNative = swapIfNeeded(v);
+	@property asBigEndian(U)(U val) if(is(U == T)) {
+		return asNative = swapIfNeeded(val);
 	}
 	
 	alias isBigEndian = void;
@@ -37,10 +37,12 @@ struct BigEndian(T) {
 	BigEndian!T opAssign(U)(U val) if(is(U : const ubyte[])) {
 		assert(T.sizeof == val.length);
 		T tmp;
-		foreach(i,v;val) {
-			tmp |= (v >> i); 
+		// (XXX) Consider swaping while reading them in.
+		foreach(i;0 .. T.sizeof) {
+			tmp |= (val[i] << (T.sizeof - i - 1)*8UL); 
 		}
 		this.asNative = swapIfNeeded(tmp);
+	
 		return this;
 	}
 
@@ -50,7 +52,7 @@ struct BigEndian(T) {
 		version(BigEndian) {
 			return val;
 		} else {
-			static if (is(T.isBigEndian)) {
+			static if (is(U.isBigEndian)) {
 				return val;
 			} else {
 				return swapEndian(val);
@@ -90,14 +92,18 @@ static struct CArray(TElement) {
 T[] toArray(T)(const ubyte[] _array, const size_t size) {
 	T[] result;
 	alias sliceType = typeof(_array[0 .. T.sizeof]);
+	 
 //	result.length = size;
+
+
 	foreach(i; 0 .. size) {
-		static if (is(typeof(T.init))) {
+		const pos = i * T.sizeof;
+		static if (is(typeof(T.init = sliceType.init))) {
 			T tmp;
-			tmp = _array[i * T.sizeof .. T.sizeof];
+			tmp = _array[pos .. pos + T.sizeof];
 			result ~= tmp;
 		} else static if (is(typeof(T(sliceType)))) {
-			result ~= T(_array[i * T.sizeof .. T.sizeof]);
+			result ~= T(_array[pos .. pos + T.sizeof]);
 		} else {
 			import std.conv;
 			static assert(0, T.stringof ~ " has to have a constructor or opAssign taking " ~ sliceType.stringof);
