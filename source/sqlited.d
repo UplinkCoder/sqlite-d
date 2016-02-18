@@ -285,13 +285,7 @@ struct Database {
 			data = cast(ubyte[])buffer;
 		}
 		dbFilename = filename;
-
-		if (!__ctfe) {
-			_cachedHeader = *cast(SQLiteHeader*) buffer.ptr;
-		} else {
-			_cachedHeader = SQLiteHeader.fromArray(buffer); 
-		}
-
+		_cachedHeader = SQLiteHeader.fromArray(buffer); 
 		assert(_cachedHeader.magicString[0..6] == "SQLite");
 	}
 
@@ -368,7 +362,7 @@ struct Database {
 
 		static assert (OverflowInfo.sizeof % 16 == 0);
 
-		Row[] getRows(PageRange pages) pure {
+		Row[] getRows(const PageRange pages) pure const {
 			version(Multithreaded) {
 				auto cellPointers = parallel(getCellPointerArray());
 			} else {
@@ -386,7 +380,7 @@ struct Database {
 			return cast(Row[]) rows._data;
 		}
 		private
-		Row getRow(const uint cellPointer, const PageRange pages) pure {
+		Row getRow(const uint cellPointer, const PageRange pages) pure const {
 			Row row;
 
 			uint offset = cellPointer;
@@ -698,7 +692,8 @@ struct Database {
 			uint offset;
 
 			while (offset < payloadHeader.length) {
-				auto typeCode = VarInt(payloadHeader[offset .. offset + 9]);
+				import std.algorithm : min;
+				auto typeCode = VarInt(payloadHeader[offset .. min(offset + 9, payloadHeader.length)]);
 				serialTypeCodes ~= Payload.SerialTypeCode(typeCode);
 				offset += typeCode.length;
 			}
@@ -823,7 +818,7 @@ struct Database {
 //		}
 
 		Payload extractPayload(const ubyte[] startPayload,
-				Payload.SerialTypeCode typeCode) pure {
+				Payload.SerialTypeCode typeCode) pure const {
 			Payload p;
 			p.typeCode = typeCode;
 			final switch (typeCode.type) {
