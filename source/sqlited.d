@@ -48,10 +48,6 @@ struct Database {
 			return numberOfPages;
 		}
 
-	//	bool empty() {
-	//		return (pageIndex > numberOfPages);
-	//	}
-
 		BTreePage opIndex(const uint pageNumber) pure const {
 			assert(pageNumber <= numberOfPages,
 					"Attempting to go to invalid page");
@@ -60,12 +56,6 @@ struct Database {
 				(pageSize * pageNumber);
 			const size_t pageEnd = 
 				(pageSize * pageNumber) + usablePageSize;
-
-			//assert(usablePageSize > 10);
-			debug {
-				import std.stdio;
-				writeln("pn ", pageNumber, " pb: ", pageBegin, " pe: ", pageEnd, " ps: ", pageSize);
-			}
 
 			return BTreePage(data[pageBegin .. pageEnd], pageNumber ? 0 : 100);
 		}
@@ -599,13 +589,6 @@ struct Database {
 				result.fragmentedFreeBytes = _array[7];
 				if (result.isInteriorPage) {
 					result._rightmostPointer = _array[8 .. 12];
-				}
-				debug {
-					import std.stdio;
-					writeln("creating BTreePageHeader form: ", _array);
-					BigEndian!uint tmp;
-					tmp = _array[8 .. 12];
-					writeln(result, tmp, _array[8 ..12]);
 				}
 
 				return result;

@@ -62,10 +62,6 @@ void handlePage(alias pageHandler)(const Database.BTreePage page,
 	case tableInteriorPage: {
 			uint[] pageNumbers;
 			auto cpa = page.getCellPointerArray();
-			debug {
-				import std.stdio;
-				writeln(cpa[0].asBigEndian);
-			}
 		//	pageNumbers.reserve(cpa.length + 1);
 			foreach (cp; cpa) {
 				BigEndian!uint leftChildPage;
@@ -73,11 +69,6 @@ void handlePage(alias pageHandler)(const Database.BTreePage page,
 				pageNumbers ~= leftChildPage;
 			}
 			pageNumbers ~= page.header._rightmostPointer;
-			debug {
-				import std.stdio;
-
-				writeln(pageNumbers, cpa);
-			}
 			foreach (pageIndex; pageNumbers) {
 				auto _page = pages[pageIndex - 1];
 				handlePage!pageHandler(_page, pages);
