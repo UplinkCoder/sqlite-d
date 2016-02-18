@@ -179,3 +179,19 @@ unittest {
 	assert(arr.length == 3);
 	
 }
+
+
+double float64(const ubyte[] _bytes) {
+	assert(_bytes.length > double.sizeof);
+	enum bias = 1023;
+	enum mantissa_length = 53;
+	enum exponent_length = 11;
+	assert(mantissa_length + exponent_length == 64);
+	double result;
+
+	foreach(i; 0 .. (mantissa_length / 8) + 1) {
+
+	}
+
+	return result;
+}

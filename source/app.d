@@ -27,16 +27,17 @@ uint ct () {
 	handlePage!((page, pages) => cnt += page.header.cellsInPage)(cast(Database.BTreePage)rp, db.pages);
 	return cnt;
 }
-bool fn_() {
-	bool result;
-//	handlePage!(
-//		(page,pages) => apply!(p => result = (p == long_create_table))(page.getRows(pages)[0].colums[4])
-//	)(rp, pages);
-	return result;
+auto pn_() {
+	Database.Row[] rows;
+	handlePage!(
+		(page,pages) => rows ~= (page.getRows(pages))
+	)(rp, pages);
+	auto p = Database.extractPayload(rows[0].payloadStart, rows[0].typeCodes[0]).getAs!string;
+	return p;
 }
 
 
-pragma(msg, db.header.pageSize, db.usablePageSize, ct);
+pragma(msg, db.header.pageSize, db.usablePageSize, ct, pn_);
 
 int main(string[] args) {
 	import std.stdio;
@@ -60,7 +61,7 @@ int main(string[] args) {
 //		handlePageF(db.pages[page], db.pages, &pageHandler);
 		import std.datetime;
 		const _page = db.pages[page];
-		writeln(.db.pages[1].getRows(.db.pages));
+		writeln(db.pages[1].getRows(db.pages));
 	//	handlePage!((page, pages) => writeln(page.getRows(pages)))(*db, 0);
 		uint fn() {
 			uint cnt;

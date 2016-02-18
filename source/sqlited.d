@@ -97,7 +97,7 @@ struct Database {
 				_string = (13)
 			}
 
-			this(VarInt v) pure nothrow {
+			this(VarInt v) pure  {
 				if (v > 11) {
 					if (v & 1) {
 						type = SerialTypeCode.SerialTypeCodeEnum._string;
@@ -107,6 +107,10 @@ struct Database {
 						length = (v - 12) / 2;
 					}
 				} else {
+					debug {
+						import std.stdio;
+						if (!__ctfe) writeln(v);
+					}
 					type = cast(SerialTypeCodeEnum) v;
 					final switch (type) with (SerialTypeCodeEnum) {
 					case NULL:
@@ -169,9 +173,11 @@ struct Database {
 	}
 
 	static struct Row {
-		Payload[] colums;
+		const Payload.SerialTypeCode[] typeCodes;
+		const ubyte[] payloadStart;
+//		Payload[] colums;
 		//	TableSchema* schema;
-		alias colums this;
+//		alias colums this;
 	}
 
 	static struct Table {
@@ -365,47 +371,51 @@ struct Database {
 		Row[] getRows(const PageRange pages) pure const {
 			version(Multithreaded) {
 				auto cellPointers = parallel(getCellPointerArray());
+				import atomicarray;
+				AtomicArray!Row rows;
 			} else {
 				auto cellPointers = getCellPointerArray();
+				Row[] rows;
 			}
 			import std.parallelism;
-			import atomicarray;
-			AtomicArray!Row rows;
+
 			assert(pageType == BTreePageType.tableLeafPage, "only tableLeafPages are supported for now");
 
 			foreach (cp; cellPointers) {
-				rows ~= atomicValue(getRow(cp, pages), cast(uint)cp);
+				version(Multithreaded) {
+					rows ~= atomicValue(getRow(cp, pages), cast(uint)cp);
+				} else {
+					rows ~= getRow(cp, pages);
+				}
 			}
-
-			return cast(Row[]) rows._data;
+			version(Multithreaded) {
+				return cast(Row[]) rows._data;
+			} else {
+				return rows;
+			}
 		}
 		private
 		Row getRow(const uint cellPointer, const PageRange pages) pure const {
-			Row row;
 
 			uint offset = cellPointer;
 			
 			auto payloadSize = VarInt(page[offset .. offset + 9]);
-			auto offset_1 = cellPointer + payloadSize.length;
+			offset += payloadSize.length;
 			
 			auto rowId = VarInt(page[offset .. offset + 9]);
 			offset += rowId.length;
 			
 			
 			auto payloadHeaderSize = VarInt(page[offset .. offset + 9]);
-			offset += payloadHeaderSize.length;
 
-			auto typeCodes = processPayloadHeader(page[offset .. offset + payloadHeaderSize]);
+			auto typeCodes = processPayloadHeader(page[offset + payloadHeaderSize.length .. offset + payloadHeaderSize]);
 			offset += payloadHeaderSize;
 
-			row.colums.length = typeCodes.length;
-
 			if (payloadSize < page.length - 35) {
-				foreach(i, typeCode; typeCodes) {
-					row.colums[i] = extractPayload(page[offset .. offset + typeCode.length], typeCode);
-					offset += typeCode.length;
-				}
-				return row;
+//				foreach(i, typeCode; typeCodes) {
+//					row.colums[i] = extractPayload(page[offset .. offset + typeCode.length], typeCode);
+//					offset += typeCode.length;
+//				}
 			} else {
 				auto overflowInfo = OverflowInfo();
 
@@ -419,7 +429,7 @@ struct Database {
 	//			}
 			//	assert("we don't handle overflow");
 			}
-			return row;
+			return Row(typeCodes, page[offset .. $]);
 				
 		}
 
@@ -816,12 +826,14 @@ struct Database {
 //				}
 //			}
 //		}
+	}
 
-		Payload extractPayload(const ubyte[] startPayload,
-				Payload.SerialTypeCode typeCode) pure const {
-			Payload p;
-			p.typeCode = typeCode;
-			final switch (typeCode.type) {
+	static Payload extractPayload(const ubyte[] startPayload,
+		Payload.SerialTypeCode typeCode) pure {
+		Payload p;
+		p.typeCode = typeCode;
+		
+		final switch (typeCode.type) {
 			case typeof(typeCode).int8:
 				p.int8 = *cast(byte*) startPayload;
 				break;
@@ -841,7 +853,10 @@ struct Database {
 				p.int64 = *cast(long*) startPayload;
 				break;
 			case typeof(typeCode).float64:
-				p.float64 = *cast(double*) startPayload;
+				if (!__ctfe)
+					p.float64 = *cast(double*) startPayload;
+				else
+					assert(0, "not supporeted at CTFE yet");
 				break;
 			case typeof(typeCode).blob:
 				p.blob = cast(ubyte[]) startPayload[0 .. cast(uint) typeCode.length];
@@ -849,16 +864,14 @@ struct Database {
 			case typeof(typeCode)._string:
 				p._string = cast(string) startPayload[0 .. cast(uint) typeCode.length];
 				break;
-
+				
 			case typeof(typeCode).NULL:
 			case typeof(typeCode).bool_false:
 			case typeof(typeCode).bool_true:
 				break;
-			}
-
-			return p;
 		}
-
+		
+		return p;
 	}
 
 }
