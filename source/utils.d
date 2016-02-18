@@ -27,13 +27,23 @@ struct BigEndian(T) {
 		this.asNative = val.asNative;
 		return this;
 	}
-	
-	BigEndian!T opAssign(U)(U val) if(!is(U.isBigEndian)) {
+	import std.traits;
+	BigEndian!T opAssign(U)(U val) if(!is(U.isBigEndian) && isIntegral!U) {
 		assert(val <= T.max && val >= T.min);
 		this.asNative = swapIfNeeded(cast(T)val);
 		return this;
 	}
-	
+
+	BigEndian!T opAssign(U)(U val) if(is(U : const ubyte[])) {
+		assert(T.sizeof == val.length);
+		T tmp;
+		foreach(i,v;val) {
+			tmp |= (v >> i); 
+		}
+		this.asNative = swapIfNeeded(tmp);
+		return this;
+	}
+
 	static U swapIfNeeded (U)(U val) {
 		import std.bitmanip:swapEndian;
 		
@@ -75,6 +85,26 @@ static struct CArray(TElement) {
 	}
 	
 	
+}
+
+T[] toArray(T)(const ubyte[] _array, const size_t size) {
+	T[] result;
+	alias sliceType = typeof(_array[0 .. T.sizeof]);
+//	result.length = size;
+	foreach(i; 0 .. size) {
+		static if (is(typeof(T.init))) {
+			T tmp;
+			tmp = _array[i * T.sizeof .. T.sizeof];
+			result ~= tmp;
+		} else static if (is(typeof(T(sliceType)))) {
+			result ~= T(_array[i * T.sizeof .. T.sizeof]);
+		} else {
+			import std.conv;
+			static assert(0, T.stringof ~ " has to have a constructor or opAssign taking " ~ sliceType.stringof);
+		}
+	}
+
+	return result;
 }
 
 uint sizeInBytes(ulong val) pure @nogc nothrow {

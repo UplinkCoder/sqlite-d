@@ -13,55 +13,60 @@ extern (C):
 
 struct Database {
 	string dbFilename;
-	ubyte[] data;
-	uint currentOffset = 0;
+	const ubyte[] data;
+
 	SQLiteHeader cachedHeader;
 
-	SQLiteHeader header() pure {
+	SQLiteHeader header() pure const {
 		return cachedHeader;
 	}
 
-	BTreePage rootPage() {
-		return BTreePage(data.ptr, usablePageSize, 100);
+	BTreePage rootPage() pure const {
+		return pages[0];
 	}
 
-	PageRange pages() {
-		return PageRange(data.ptr, cachedHeader.pageSize,
-				usablePageSize, cast(uint) data.length / cachedHeader.pageSize);
+	PageRange pages() pure const {
+		return PageRange(cast(const)data, cachedHeader.pageSize.asNative,
+				usablePageSize, cast(const uint)(data.length / cast(BigEndian!ushort)cachedHeader.pageSize));
 	}
 
-	uint usablePageSize() {
-		uint _usablePageSize = cachedHeader.pageSize - cachedHeader.reserved;
-		return _usablePageSize;
+	const(uint) usablePageSize() pure const {
+		if (__ctfe) {
+			return header.pageSize.asNative - header.reserved;
+		}
+		return header.pageSize - header.reserved;
 	}
 
 	struct PageRange {
-		uint currentOffset = 0;
-		ubyte* basePtr;
+		const ubyte[] data;
 		const uint pageSize;
 		const uint usablePageSize;
 
 		const uint numberOfPages;
-		uint pageIndex;
-
+	pure :
 		@property uint length() const {
 			return numberOfPages;
 		}
 
-		bool empty() {
-			return (pageIndex > numberOfPages);
-		}
+	//	bool empty() {
+	//		return (pageIndex > numberOfPages);
+	//	}
 
-		BTreePage opIndex(uint pageNumber) pure {
+		BTreePage opIndex(const int pageNumber) pure const {
 			assert(pageNumber <= numberOfPages,
 					"Attempting to go to invalid page");
-			return BTreePage(basePtr + (pageSize * pageNumber),
-					usablePageSize, (pageNumber == 0 ? 100 : 0));
+			const size_t pageBegin = 
+				(pageSize * pageNumber) + (pageNumber ? 0 : 100);
+			const size_t pageEnd = 
+				(pageSize * pageNumber) + usablePageSize - (pageNumber ? 0 : 100);
+
+			//assert(usablePageSize > 10);
+			return BTreePage(data[pageBegin .. pageEnd]);
 		}
 
-		this(ubyte* basePtr, uint pageSize,
-				uint usablePageSize, uint numberOfPages) pure {
-			this.basePtr = basePtr;
+		this(const ubyte[] data, const uint pageSize,
+				const uint usablePageSize, const uint numberOfPages) pure {
+			this.data = data;
 			this.pageSize = pageSize;
 			this.usablePageSize = usablePageSize;
 			this.numberOfPages = numberOfPages;
@@ -179,7 +184,7 @@ struct Database {
 
 	static align(1) struct SQLiteHeader {
 
-		bool isValid() {
+		bool isValid() pure {
 			return magicString == "SQLite format 3\0";
 		}
 
@@ -211,7 +216,7 @@ struct Database {
 
 		}
 
-		const(char[16]) magicString;
+		char[16] magicString;
 
 		BigEndian!ushort pageSize; /// between 512 and 32768 or 1
 
@@ -247,27 +252,50 @@ struct Database {
 
 		BigEndian!uint validForVersion;
 		BigEndian!uint sqliteVersion;
+
+		static SQLiteHeader fromArray (const ubyte[] raw) pure {
+			assert(raw.length >= this.sizeof);
+			SQLiteHeader result;
+
+			result.magicString = cast(char[])raw[0 .. 16];
+			result.pageSize = raw[16 .. 18];
+			result.FileFormatWriteVer = cast(FileFormat)raw[18 .. 19][0];
+			result.FileFormatReadVer = cast(FileFormat)raw[19 .. 20][0];
+			result.reserved = raw[20 .. 21][0];
+		//	result.maxEmbeddedPayloadFract = raw[21 .. 22];
+		//	result.minEmbeddedPayloadFract = raw[22 .. 23];
+		//	result.leafPayloadFract = raw[23 .. 24]
+			result.fileChangeCounter = raw[24 .. 28];
+			result.sizeInPages = raw[28 .. 32];
+			result.firstFreelistPage = raw[32 .. 36];
+
+			return result;
+		}
 	}
 
 	this(string filename, bool readEntirely = true) {
-		import std.file;	
-	//	import std.stdio;
+		import std.file;
 
 		auto data = cast(ubyte[]) read(filename);
 		this(data, filename);
 	}
 
-	this(ubyte[] buffer = null, string filename = ":Memory:") {
+	this(const ubyte[] buffer = null, string filename = ":Memory:") pure {
 		if (buffer is null) {
 			ubyte[] myBuffer;
 			data = myBuffer;
 		} else {
-			data = buffer;
+			data = cast(ubyte[])buffer;
 		}
 		dbFilename = filename;
-		auto _header = cast(SQLiteHeader*) buffer.ptr;
-		assert(_header.isValid());
-		cachedHeader = *_header;
+
+		if (!__ctfe) {
+			cachedHeader = *cast(SQLiteHeader*) buffer.ptr;
+		} else {
+			cachedHeader = SQLiteHeader.fromArray(buffer); 
+		}
+
+		assert(cachedHeader.magicString[0..6] == "SQLite");
 	}
 
 	static struct MasterTableSchema {
@@ -300,31 +328,16 @@ struct Database {
 	 *	 
 	 */
 
-	Row[] rows(uint rootpage) {
-		import sqlite.misc;
-		string myData;
-		handlePage!((page, pages) => myData ~= page.toString(pages)) (pages[rootpage - 1], pages);
-	//	Row[] _rows;
-		auto _rp = pages[rootpage - 1];
-		assert(0);	
-		
-	}
-
 	static struct BTreePage {
-		ubyte* base;
-		const uint _usablePageSize;
+		const ubyte[] page;
 
-		uint offset;
-		@property const uint usablePageSize() pure {
-			return _usablePageSize;
-		}
 
-		uint payloadOnPage(uint payloadSize) pure {
-			auto m = ((usablePageSize - 12) * 32 / 255) - 23;
+		uint payloadOnPage(const uint payloadSize) const pure {
+			auto m = ((page.length - 12) * 32 / 255) - 23;
 			import std.algorithm : min;
 
-			auto x1 = m + ((payloadSize - m) % (usablePageSize - 4));
-			auto x2 = ((usablePageSize - 12) * 64 / 255) - 23;
+			auto x1 = cast(uint) m + ((payloadSize - m) % (page.length - 4));
+			auto x2 = cast(uint) ((page.length - 12) * 64 / 255) - 23;
 
 			debug {
 				import std.stdio;
@@ -340,7 +353,7 @@ struct Database {
 				assert(0, "has no payload");
 
 			case tableLeafPage:
-				return min(usablePageSize - 35, x1);
+				return min(cast(uint)page.length - 35, x1);
 
 			case indexInteriorPage:
 			case indexLeafPage:
@@ -349,182 +362,201 @@ struct Database {
 			}
 		}
 
-		Row[] getRows(PageRange pages) /*pure*/ {
-			auto cellPointers = getCellPointerArray();
+		struct OverflowInfo {
+			uint remainingTotalPayload;
+			uint nextPageIdx;
+			uint payloadOnFirstPage;
+			uint __padding;
+		}
+
+		static assert (OverflowInfo.sizeof % 16 == 0);
+
+		Row[] getRows(PageRange pages) pure {
+			version(Multithreaded) {
+				auto cellPointers = parallel(getCellPointerArray());
+			} else {
+				auto cellPointers = getCellPointerArray();
+			}
 			import std.parallelism;
 			import atomicarray;
 			AtomicArray!Row rows;
 			assert(pageType == BTreePageType.tableLeafPage, "only tableLeafPages are supported for now");
 
-			foreach (cp; parallel(cellPointers)) {
+			foreach (cp; cellPointers) {
 				rows ~= atomicValue(getRow(cp, pages), cast(uint)cp);
 			}
 
 			return cast(Row[]) rows._data;
 		}
-
+		private
 		Row getRow(uint cellPointer, PageRange pages) pure {
-			ubyte* courser = base + cellPointer;
+			ubyte[] courser = cast(ubyte[]) page[cellPointer .. $];
 			Row row;
 
 			auto payloadSize = VarInt(courser);
-			courser += payloadSize.length;
+			courser = courser[payloadSize.length .. $];
 
 			auto rowId = VarInt(courser);
-			courser += rowId.length;
+			courser = courser[rowId.length .. $];
 
 			
 			auto payloadHeaderSize = VarInt(courser);
-			courser += payloadHeaderSize.length;
+			courser = courser[payloadSize.length .. $];
 
-			auto typeCodes = processPayloadHeader(courser, payloadHeaderSize);
-			courser += payloadHeaderSize - payloadHeaderSize.length;
+			auto typeCodes = processPayloadHeader(courser[0 .. payloadHeaderSize]);
+			courser = courser[payloadHeaderSize - payloadHeaderSize.length .. $];
 
 			row.colums.length = typeCodes.length;
-			foreach(i, typeCode; typeCodes) {
-				row.colums[i] = extractPayload(courser, typeCode);
-			} 
+
+			if (payloadSize < page.length - 35) {
+				foreach(i, typeCode; typeCodes) {
+					row.colums[i] = extractPayload(courser, typeCode);
+				}
+			} else {
+				auto overflowInfo = OverflowInfo();
+
+				overflowInfo.remainingTotalPayload = cast(uint)payloadSize;
+				overflowInfo.payloadOnFirstPage = 
+					payloadOnPage(cast(uint)(payloadSize)) - cast(uint)payloadHeaderSize;
+
+				foreach(i, typeCode; typeCodes) {
+					row.colums[i] = extractPayload(courser, typeCode,
+						&overflowInfo, pages);
+				}
+			}
 			return row;
 		}
 
-		string toString(PageRange pages) {
-			import std.conv;
-
-			auto pageType = header.pageType;
-			string result = to!string(pageType);
-
-			auto cellPointers = getCellPointerArray();
-			foreach (cp; cellPointers) {
-				ubyte* printPtr = cast(ubyte*) base + cp;
-				//assert(printPtr - ptrToBase > 5000);
-				result ~= "\ncp:" ~ to!string(cp) ~ "\n";
-
-				final switch (header.pageType) with (
-					BTreePageHeader.BTreePageType) {
-				case emptyPage:
-					result ~= "This page is Empty or the pointer is bogus\n";
-					break;
-
-				case tableLeafPage: {
-						auto singlePagePayloadSize = usablePageSize - 35;
-						result ~= "singlePagePayloadSize : " ~ (
-							singlePagePayloadSize).to!string ~ "\n";
-						auto payloadSize = VarInt(printPtr);
-						result ~= "payloadSize: " ~ (payloadSize).to!string
-							~ "\n";
-						printPtr += payloadSize.length;
-						auto rowid = VarInt(printPtr);
-						result ~= "rowid: " ~ (rowid).to!string ~ "\n";
-						printPtr += rowid.length;
-
-						auto payloadHeaderSize = VarInt(printPtr);
-						result ~= "payloadHeaderSize: " ~ (payloadHeaderSize)
-							.to!string ~ "\n";
-
-						printPtr += payloadHeaderSize.length;
-
-						auto typeCodes = processPayloadHeader(printPtr,
-								payloadHeaderSize);
-						printPtr += payloadHeaderSize - payloadHeaderSize.length;
-
-						import std.algorithm;
-						assert(typeCodes.map!(tc => tc.length).sum == payloadSize - payloadHeaderSize);
-
-						result ~= "{ ";
-						if (payloadSize < singlePagePayloadSize) {
-							foreach (typeCode; typeCodes) {
-								auto p = extractPayload(printPtr, typeCode);
-								result ~= p.apply!(
-									v => "\t\"" ~ to!string(v) ~ "\",\n");
-								printPtr += typeCode.length;
-							}
-						} else {
-							uint remainingTotalPayload = 
-								cast(uint) (payloadSize);
-
-							uint payloadOnFirstPage = payloadOnPage(cast(uint) payloadSize) - cast(uint) payloadHeaderSize;
-							uint nextPageIdx;
-
-							foreach (typeCode; typeCodes) {
-								auto p = extractPayload(&remainingTotalPayload,
-										&payloadOnFirstPage,
-										&nextPageIdx,
-										pages, &printPtr, typeCode);
-								auto str = p.apply!(v => "\t\"" ~ to!string(v) ~ "\",\n");
-								debug {
-									import std.stdio;
-									writeln(str);
-								}
-								result ~= str;
-
-							}
-						}
-
-						result ~= " }\n";
-
-						printPtr += payloadSize;
-					}
-					break;
-
-				case tableInteriorPage: {
-						BigEndian!uint leftChildPointer = *(
-							cast(uint*) printPtr);
-						result ~= "nextPagePointer: " ~ (leftChildPointer)
-							.to!string ~ "\n";
-						//auto lc = BTreePage(base, usablePageSize, leftChildPointer);
-						//result ~= to!string(lc);
-						printPtr += uint.sizeof;
-						auto integerKey = VarInt(printPtr);
-						result ~= "integerKey: " ~ (integerKey).to!string
-							~ "\n";
-						printPtr += integerKey.length;
-					}
-					
-					break;
-
-				case indexLeafPage: {
-						auto payloadSize = VarInt(cast(ubyte*) printPtr);
-						result ~= "payloadSize: " ~ (payloadSize).to!string
-							~ "\n";
-						printPtr += payloadSize.length;
-						auto payloadHeaderSize = VarInt(cast(ubyte*) printPtr);
-						printPtr += payloadHeaderSize.length;
-						result ~= "payloadHeaderSize: " ~ (payloadHeaderSize)
-							.to!string ~ "\n";
-						auto typeCodes = processPayloadHeader(printPtr,
-								payloadHeaderSize);
-						foreach (typeCode; typeCodes) {
-							result ~= to!string(typeCode) ~ ", ";
-						}
-						result ~= "\n";
-						result ~= "rs-phs : " ~ to!string(
-							payloadSize - payloadHeaderSize) ~ "\n";
-						auto payload = CArray!char.toArray(
-							cast(ubyte*)(printPtr + payloadHeaderSize),
-								payloadSize - payloadHeaderSize);
-						printPtr += payloadSize;
-						result ~= (payload.length) ? (payload).to!string : "";
-						
-					}
-					break;
-
-				case indexInteriorPage: {
-						BigEndian!uint leftChildPointer = 
-							*(cast(uint*) printPtr);
-						result ~= "leftChildPinter: " ~ (leftChildPointer)
-							.to!string ~ "\n";
-						VarInt payloadSize;
-						CArray!ubyte _payload;
-						BigEndian!uint _firstOverflowPage;
-						//assert(0,"No support for indexInteriorPage");
-					}
-					break;
-
-				}
-
-			}
-			return result;
-		}
+//		string toString(PageRange pages) {
+//			import std.conv;
+//
+//			auto pageType = header.pageType;
+//			string result = to!string(pageType);
+//
+//			auto cellPointers = getCellPointerArray();
+//			foreach (cp; cellPointers) {
+//				ubyte* printPtr = cast(ubyte*) base + cp;
+//
+//				final switch (header.pageType) with (
+//					BTreePageHeader.BTreePageType) {
+//				case emptyPage:
+//					result ~= "This page is Empty or the pointer is bogus\n";
+//					break;
+//
+//				case tableLeafPage: {
+//						auto singlePagePayloadSize = usablePageSize - 35;
+//						result ~= "singlePagePayloadSize : " ~ (
+//							singlePagePayloadSize).to!string ~ "\n";
+//						auto payloadSize = VarInt(printPtr);
+//						result ~= "payloadSize: " ~ (payloadSize).to!string
+//							~ "\n";
+//						printPtr += payloadSize.length;
+//						auto rowid = VarInt(printPtr);
+//						result ~= "rowid: " ~ (rowid).to!string ~ "\n";
+//						printPtr += rowid.length;
+//
+//						auto payloadHeaderSize = VarInt(printPtr);
+//						result ~= "payloadHeaderSize: " ~ (payloadHeaderSize)
+//							.to!string ~ "\n";
+//
+//						printPtr += payloadHeaderSize.length;
+//
+//						auto typeCodes = processPayloadHeader(printPtr,
+//								payloadHeaderSize);
+//						printPtr += payloadHeaderSize - payloadHeaderSize.length;
+//
+//						import std.algorithm;
+//						assert(typeCodes.map!(tc => tc.length).sum == payloadSize - payloadHeaderSize);
+//
+//						result ~= "{ ";
+//						if (payloadSize < singlePagePayloadSize) {
+//							foreach (typeCode; typeCodes) {
+//								auto p = extractPayload(printPtr, typeCode);
+//								result ~= p.apply!(
+//									v => "\t\"" ~ to!string(v) ~ "\",\n");
+//								printPtr += typeCode.length;
+//							}
+//						} else {
+//							auto overflowInfo = OverflowInfo();
+//
+//							overflowInfo.remainingTotalPayload = cast(uint)payloadSize;
+//							overflowInfo.payloadOnFirstPage = 
+//								payloadOnPage(cast(uint)(payloadSize)) - cast(uint)payloadHeaderSize;
+//
+//							foreach (typeCode; typeCodes) {
+//								auto p = extractPayload(&printPtr, typeCode,
+//										&overflowInfo, pages);
+//								auto str = p.apply!(v => "\t\"" ~ to!string(v) ~ "\",\n");
+//								result ~= str;
+//
+//							}
+//						}
+//
+//						result ~= " }\n";
+//
+//						printPtr += payloadSize;
+//					}
+//					break;
+//
+//				case tableInteriorPage: {
+//						BigEndian!uint leftChildPointer = *(
+//							cast(uint*) printPtr);
+//						result ~= "nextPagePointer: " ~ (leftChildPointer)
+//							.to!string ~ "\n";
+//						//auto lc = BTreePage(base, usablePageSize, leftChildPointer);
+//						//result ~= to!string(lc);
+//						printPtr += uint.sizeof;
+//						auto integerKey = VarInt(printPtr);
+//						result ~= "integerKey: " ~ (integerKey).to!string
+//							~ "\n";
+//						printPtr += integerKey.length;
+//					}
+//					
+//					break;
+//
+//				case indexLeafPage: {
+//						auto payloadSize = VarInt(cast(ubyte*) printPtr);
+//						result ~= "payloadSize: " ~ (payloadSize).to!string
+//							~ "\n";
+//						printPtr += payloadSize.length;
+//						auto payloadHeaderSize = VarInt(cast(ubyte*) printPtr);
+//						printPtr += payloadHeaderSize.length;
+//						result ~= "payloadHeaderSize: " ~ (payloadHeaderSize)
+//							.to!string ~ "\n";
+//						auto typeCodes = processPayloadHeader(printPtr,
+//								payloadHeaderSize);
+//						foreach (typeCode; typeCodes) {
+//							result ~= to!string(typeCode) ~ ", ";
+//						}
+//						result ~= "\n";
+//						result ~= "rs-phs : " ~ to!string(
+//							payloadSize - payloadHeaderSize) ~ "\n";
+//						auto payload = CArray!char.toArray(
+//							cast(ubyte*)(printPtr + payloadHeaderSize),
+//								payloadSize - payloadHeaderSize);
+//						printPtr += payloadSize;
+//						result ~= (payload.length) ? (payload).to!string : "";
+//						
+//					}
+//					break;
+//
+//				case indexInteriorPage: {
+//						BigEndian!uint leftChildPointer = 
+//							*(cast(uint*) printPtr);
+//						result ~= "leftChildPinter: " ~ (leftChildPointer)
+//							.to!string ~ "\n";
+//						VarInt payloadSize;
+//						CArray!ubyte _payload;
+//						BigEndian!uint _firstOverflowPage;
+//						//assert(0,"No support for indexInteriorPage");
+//					}
+//					break;
+//
+//				}
+//
+//			}
+//			return result;
+//		}
 
 		static align(1) struct BTreePageHeader {
 		align(1):
@@ -543,6 +575,20 @@ struct Database {
 			BigEndian!ushort startCellContantArea; /// 0 is interpreted as 65536
 			ubyte fragmentedFreeBytes;
 			BigEndian!uint _rightmostPointer;
+
+			static BTreePageHeader fromArray(const ubyte[] _array) pure {
+				assert(_array.length >= this.sizeof);
+				BTreePageHeader result;
+				result._pageType = cast(BTreePageType)_array[0];
+				result.firstFreeBlock = _array[1 .. 3]; 
+				result.cellsInPage = _array[3 .. 5];
+				result.startCellContantArea = _array[5 .. 7];
+				result.fragmentedFreeBytes = _array[7];
+				if (result.isInteriorPage) {
+					result._rightmostPointer = _array[8 .. 12];
+				}
+				return result;
+			}
 
 			bool isInteriorPage() pure const {
 				return (pageType == pageType.indexInteriorPage
@@ -563,6 +609,10 @@ struct Database {
 				assert(isInteriorPage,
 						"the rightmost pointer is only in interior nodes");
 				_rightmostPointer = rmp;
+			}
+
+			uint length() pure const {
+				return 12 - (isInteriorPage ? 0 : 4);
 			}
 
 			string toString() {
@@ -612,56 +662,51 @@ struct Database {
 				assert(0, "page has no payload");
 			
 			case indexInteriorPage:
-				return VarInt(base + cp + uint.sizeof);
+				return VarInt(page[cp + uint.sizeof .. cp + uint.sizeof + 9]);
 			case indexLeafPage:
-				return VarInt(base + cp);
+				return VarInt(page[cp .. cp + 9]);
 			case tableLeafPage:
-				return VarInt(base + cp);
+				return VarInt(page[cp .. cp + 9]);
 			}
 		}
 
 		BTreePageHeader header() const pure {
-			ubyte* _offset = (cast(ubyte*) base + offset);
-			return *cast(BTreePageHeader*) _offset;
+			return BTreePageHeader.fromArray(page[0 .. BTreePageHeader.sizeof]);
 		}
 
-		uint headerSize() pure const {
-			return 12 - (header.isInteriorPage ? 0 : 4);
-		}
 
-		auto getCellPointerArray() {
-			ubyte* arrayPos = cast(ubyte*) base + offset + headerSize();
-			return CArray!(BigEndian!ushort).toArray(arrayPos,
-					header().cellsInPage);
+
+		auto getCellPointerArray() const pure {
+			return page[header.length .. $].toArray!(BigEndian!ushort)(header.cellsInPage);
 		}
 
 		BTreePageHeader.BTreePageType pageType() const pure {
 			return (header()).pageType;
 		}
 
-		auto processPayloadHeader(ubyte* startPayloadHeader,
-				ulong payloadHeaderSize) pure {
+		auto processPayloadHeader(ubyte[] payloadHeader) pure {
 			Payload.SerialTypeCode[] serialTypeCodes;
-			serialTypeCodes.reserve(cast(uint) payloadHeaderSize);
+			if (!__ctfe) {
+			//	serialTypeCodes.reserve(cast(uint) payloadHeader.length);
+			}
 
-			ubyte* ptr = startPayloadHeader;
-			while (ptr < startPayloadHeader + payloadHeaderSize - 1) {
-				auto typeCode = VarInt(ptr);
+			while (payloadHeader.length) {
+				auto typeCode = VarInt(payloadHeader);
 				serialTypeCodes ~= Payload.SerialTypeCode(typeCode);
-				ptr += typeCode.length;
+				payloadHeader = payloadHeader[typeCode.length .. $];
 			}
 			return serialTypeCodes;
 		}
 
 		Payload extractPayload(
-			uint* remainingTotalPayload,
-			uint* payloadOnFirstPage,
-			uint* nextPageIdx,
-			PageRange pages, ubyte** startPayload,
-			Payload.SerialTypeCode typeCode) pure {
+			ubyte[] startPayload,
+			Payload.SerialTypeCode typeCode,
+			OverflowInfo* overflowInfo,
+			PageRange pages
+		) pure {
 
 			static void gotoNextPage(uint* nextPageIdx,
-					PageRange pages, ubyte** startPayload) {
+					PageRange pages, ubyte[] startPayload) {
 
 				assert(*nextPageIdx != 0, "No next Page to go to");
 				debug {
@@ -669,25 +714,28 @@ struct Database {
 					writeln("goto page : ", *nextPageIdx);
 				}
 				auto nextPage = pages[(*nextPageIdx) - 1];
-				*nextPageIdx = *(cast(BigEndian!uint*) nextPage.base);
-				*startPayload = nextPage.base + uint.sizeof;
+				BigEndian!uint np;
+				np = nextPage.page[0 .. uint.sizeof];
+				*nextPageIdx = np;
+
+				startPayload = cast(ubyte[])nextPage.page[uint.sizeof .. $];
 			}
 
-			if (typeCode.length <= *payloadOnFirstPage) {
-				*payloadOnFirstPage -= typeCode.length;
-				*remainingTotalPayload -= typeCode.length;
+			if (typeCode.length <= overflowInfo.payloadOnFirstPage) {
+				overflowInfo.payloadOnFirstPage -= typeCode.length;
+				overflowInfo.remainingTotalPayload -= typeCode.length;
 
-				auto oldStartPayload = *startPayload;
-				*startPayload += typeCode.length;
-				if (*payloadOnFirstPage == 0
-						&& *remainingTotalPayload > 0) {
+				auto oldPayload = startPayload;
+				startPayload = startPayload[typeCode.length .. $];
+				if (overflowInfo.payloadOnFirstPage == 0
+						&& overflowInfo.remainingTotalPayload > 0) {
 					assert(0, "I do not expect us to ever get here"
 						"If we ever do, uncomment the two lines below and delete this assert");
 				//	nextPageIdx = *cast(uint*)*startPayload;
 				//	gotoNextPage(&nextPageIdx, pages, startPayload);
 				}
 
-				return extractPayload(oldStartPayload, typeCode);
+				return extractPayload(oldPayload, typeCode);
 			} else { // typeCode.length > payloadOnFirstPage
 				// We need to consolidate the Payload here...
 				// let's assume SQLite is sane and does not split primitive types in the middle
@@ -696,34 +744,34 @@ struct Database {
 
 				auto remainingBytesOfPayload = cast(uint) typeCode.length;
 				ubyte[] _payloadBuffer;
-				_payloadBuffer.reserve(cast(uint) typeCode.length);
+			//	_payloadBuffer.reserve(cast(uint) typeCode.length);
 
-				if (*payloadOnFirstPage != 0) {
-					_payloadBuffer ~= ((*startPayload)[0 .. *payloadOnFirstPage]);
-					*startPayload += *payloadOnFirstPage;
+				if (auto pofp = overflowInfo.payloadOnFirstPage) {
+					_payloadBuffer ~= startPayload[0 .. pofp].dup;
+					startPayload = startPayload[pofp .. $];
 
-					remainingBytesOfPayload -= *payloadOnFirstPage;
-					*remainingTotalPayload -= *payloadOnFirstPage;
+					remainingBytesOfPayload -= pofp;
+					overflowInfo.remainingTotalPayload -= pofp;
 
-					if (*nextPageIdx == 0) {
-						*nextPageIdx = 
-							*(cast(BigEndian!uint*) *startPayload);
+					if (overflowInfo.nextPageIdx == 0) {
+						overflowInfo.nextPageIdx = 
+							*(cast(BigEndian!uint*) startPayload[0 .. 4]);
 					}
-					*payloadOnFirstPage = 0;
+					overflowInfo.payloadOnFirstPage = 0;
 				}
-
+				
 				for (;;) {
-					if(remainingBytesOfPayload > *remainingTotalPayload) {
+					if(remainingBytesOfPayload > overflowInfo.remainingTotalPayload) {
 						debug { 
 							import std.stdio;
-							writeln(remainingBytesOfPayload, " > ", *remainingTotalPayload);
+							writeln(remainingBytesOfPayload, " > ", overflowInfo.remainingTotalPayload);
 						}
 						
 					}
-					gotoNextPage(nextPageIdx, pages, startPayload);
+					gotoNextPage(&overflowInfo.nextPageIdx, pages, startPayload);
 					import std.algorithm : min;
 
-					auto readBytes = cast(uint) min(_usablePageSize - uint.sizeof,
+					auto readBytes = cast(uint) min(page.length - uint.sizeof,
 							remainingBytesOfPayload);
 
 					debug {
@@ -735,18 +783,18 @@ struct Database {
 					}
 					remainingBytesOfPayload -= readBytes;
 
-					_payloadBuffer ~= (*startPayload)[0 .. readBytes];
+					_payloadBuffer ~= startPayload[0 .. readBytes];
 					debug {
 						import std.stdio;
 
 					//	writeln("isAddedtoPayload: ",
 					//		cast(ubyte[])(*startPayload)[0 .. readBytes]);
-						writeln(stderr, "after Payload: ",
-							*cast(BigEndian!uint*)(*startPayload + readBytes), 
-							"remaingTotalPayload : ", *remainingTotalPayload,
-							"remaingPayload : ", remainingBytesOfPayload);
+					//	writeln(stderr, "after Payload: ",
+					//		*cast(BigEndian!uint*)(*startPayload + readBytes), 
+					//		"remaingTotalPayload : ", overflowInfo.remainingTotalPayload,
+					//		"remaingPayload : ", remainingBytesOfPayload);
 					}
-					*startPayload += readBytes;
+					startPayload = startPayload[readBytes .. $];
 
 					if (remainingBytesOfPayload == 0) {
 						debug {
@@ -755,18 +803,19 @@ struct Database {
 							writeln("pB:", cast(ubyte[]) _payloadBuffer);
 			
 						}
-						*payloadOnFirstPage = usablePageSize - (readBytes + cast(uint)uint.sizeof);
+						overflowInfo.payloadOnFirstPage = cast(uint) (
+							page.length - (readBytes + uint.sizeof));
 
 						assert(_payloadBuffer.length == typeCode.length);
-						*remainingTotalPayload -= _payloadBuffer.length;
+						overflowInfo.remainingTotalPayload -= _payloadBuffer.length;
 
-						return extractPayload(_payloadBuffer.ptr, typeCode);
+						return extractPayload(_payloadBuffer, typeCode);
 					}
 				}
 			}
 		}
 
-		Payload extractPayload(ubyte* startPayload,
+		Payload extractPayload(ubyte[] startPayload,
 				Payload.SerialTypeCode typeCode) pure {
 			Payload p;
 			p.typeCode = typeCode;

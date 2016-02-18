@@ -5,10 +5,10 @@ import sqlite.misc;
 import std.conv;
 import std.stdio;
 import core.memory;
-
+import test;
 
 void* pageHandler(Database.BTreePage page, Database.PageRange pages, void* unused) {
-	string toPrint = page.header.to!string ~ "\n" ~ page.toString(pages); 
+	string toPrint = page.header.to!string; //~ "\n" ~ page.toString(pages); 
 	writeln(toPrint);
 	return null;
 }
@@ -17,26 +17,67 @@ void* countCellsHandler(Database.BTreePage page, Database.PageRange pages, void*
 	*cast(uint*)currentCount += page.header.cellsInPage;
 	return currentCount;
 }	
+static immutable ubyte[] test_s3db = cast(immutable ubyte[]) import("test.s3db");
+static immutable db = cast(immutable)Database(test_s3db, "");
+static immutable pages =  cast(immutable)db.pages();
+static immutable rp = cast(immutable)pages[0];
+
+uint ct () { 
+	uint cnt;
+	handlePage!((page) => cnt += page.header.cellsInPage)(cast(Database.BTreePage)rp, db.pages);
+	return cnt;
+}
+//bool fn_() {
+//	bool result;
+////	handlePage!(
+////		(page,pages) => apply!(p => result = (p == long_create_table))(page.getRows(pages)[0].colums[4])
+////		)(rp, pages);
+//	return result;
+//}
 
 
-void main(string[] args) {
+pragma(msg, db.header().pageSize, db.usablePageSize, ct);
+
+int main(string[] args) {
+	import std.stdio;
 //	GC.disable();
-
+//	fn_();
 	string filename = (args.length > 1 ? args[1] : "example/test.s3db");
 	auto page = (args.length > 2 ? parse!(int)(args[2]) : 0);
 //	writefln("opening file %s", filename); 
 	auto db = new Database(filename);
-	if (db !is null) {
+//	static if (is(typeof(db) : typeof(null))) {
+//		auto db = db;
+//	} else {
+//		auto db = &db;
+//	}
+	if (db !is cast(typeof(db))null) {
 	//	writeln("it appears to be a database");
 	//	writeln(db.pages[page].header);
 	//	writeln("pageSize : ",db.header.pageSize);
-		uint cellCount;
 
-		handlePageF(db.pages[page], db.pages, &pageHandler);
-		handlePageF(db.pages[page], db.pages, &countCellsHandler, &cellCount);
 
-	//	writefln("page has %d cells", cellCount);
-	
+//		writeln(db.pages[page].getRows(db.pages));
+//		handlePageF(db.pages[page], db.pages, &pageHandler);
+		import std.datetime;
+		const _page = db.pages[page];
+		uint fn() {
+			uint cnt;
+			handlePageF(cast(Database.BTreePage)_page, db.pages, &countCellsHandler, &cnt);
+			return cnt;
+		}
+		void fn2() {
+			uint cnt;
+			handlePage!((page) => cnt += page.header.cellsInPage)(cast(Database.BTreePage)_page, db.pages);
+		}
+		foreach(i;0 .. 32) {
+			auto bm = benchmark!(fn,fn2)(1);
+			writeln(bm[1]-bm[0]);
+			bm = benchmark!(fn,fn2)(4);
+			writeln((bm[1]-bm[0]) / 4);
+		}
+//	//	writefln("page has %d cells", cellCount);
+//	
 //foreach(i; 1.. db.pages.length ){writeln("page [",i,"]\n",db.pages[i]);}
 //		writeln(db.header);
 //		writeln(db.tables["source_location"]);
@@ -58,9 +99,10 @@ void main(string[] args) {
 		//foreach(page;db.pages) {
 		//	writeln(page);
 		//}
+		return fn();
 	} else {
 //		writeln("invalid database or header corrupted");
 	}
-	
+	assert(0);
 //	readln();
 }

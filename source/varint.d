@@ -18,7 +18,7 @@ version(Benchmark) {
 }+/
 
 static align(1) struct VarInt {
-	ubyte *byteArray;
+	const ubyte[] byteArray;
 	pure nothrow /*@nogc*/ :
 align(1):
 
@@ -39,7 +39,7 @@ align(1):
 		
 		//TODO unroll this loop + SIMD
 		foreach(idx;0..length) {
-			ubyte val = *(byteArray + idx);
+			ubyte val = byteArray[idx];
 			long maskedVal = (cast(long)val & 0x7fUL); // mask 8th bit
 			long shiftBy = (length-idx-1UL)*7UL;
 
@@ -70,7 +70,7 @@ align(1):
 	//	}
 
 	@property uint length ()  {
-		return _length(byteArray);
+		return _length(byteArray.ptr);
 	}
 
 	static uint _length(const ubyte* position) {
