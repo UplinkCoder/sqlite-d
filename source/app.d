@@ -24,16 +24,18 @@ static immutable rp = cast(immutable)pages[0];
 
 uint ct () { 
 	uint cnt;
-	handlePage!((page, pages) => cnt += page.header.cellsInPage)(cast(Database.BTreePage)rp, db.pages);
+	//handlePage!((page, pages) => cnt += page.header.cellsInPage)(rp, db.pages);
 	return cnt;
 }
 auto pn_() {
+	string[] tableTypes;
 	Database.Row[] rows;
-	handlePage!(
-		(page,pages) => rows ~= (page.getRows(pages))
-	)(rp, pages);
-	auto p = Database.extractPayload(rows[0].payloadStart, rows[0].typeCodes[0]).getAs!string;
-	return p;
+	import std.algorithm : map;
+	import std.array : array;
+//	handlePage!(
+//		(page,pages) => (page.getRows(pages)).map!(r => Database.extractPayload(r, 0).getAs!string).array
+//	)(rp, pages);
+	return tableTypes;
 }
 
 
@@ -44,7 +46,7 @@ int main(string[] args) {
 //	GC.disable();
 //	fn_();
 	string filename = (args.length > 1 ? args[1] : "example/test.s3db");
-	auto page = (args.length > 2 ? parse!(int)(args[2]) : 0);
+	auto pageNr = (args.length > 2 ? parse!(int)(args[2]) : 0);
 	writefln("opening file %s", filename); 
 //	auto db = new Database(filename);
 //	static if (is(typeof(db) : typeof(null))) {
@@ -60,9 +62,15 @@ int main(string[] args) {
 //		writeln(db.pages[page].getRows(db.pages));
 //		handlePageF(db.pages[page], db.pages, &pageHandler);
 		import std.datetime;
-		const _page = db.pages[page];
+		const _page = db.pages[pageNr];
 		writeln(db.pages[1].getRows(db.pages));
-	//	handlePage!((page, pages) => writeln(page.getRows(pages)))(*db, 0);
+		Database.MasterTableSchema[] schemas;
+		Database.Row[] rows;
+
+
+		handlePage!(
+			(page, pages) => rows ~= page.getRows(pages) 
+		)(db, 0);
 		uint fn() {
 			uint cnt;
 			handlePageF(cast(Database.BTreePage)_page, db.pages, &countCellsHandler, &cnt);

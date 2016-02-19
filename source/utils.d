@@ -180,7 +180,7 @@ unittest {
 	
 }
 
-
+//TODO implement this!
 double float64(const ubyte[] _bytes) {
 	assert(_bytes.length > double.sizeof);
 	enum bias = 1023;

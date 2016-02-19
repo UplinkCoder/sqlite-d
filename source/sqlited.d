@@ -828,6 +828,22 @@ struct Database {
 //		}
 	}
 
+	static Payload extractPayload(const Row r, const uint colNum) {
+		uint offset;
+		foreach(i; 0 .. colNum) {
+			offset += r.typeCodes[i].length;
+		}
+
+		auto payloadEnd = offset + r.typeCodes[colNum].length;
+
+		if (r.payloadStart.length > payloadEnd) {
+			return extractPayload(r.payloadStart[offset .. payloadEnd], r.typeCodes[colNum]);
+		} else {
+			import std.conv;
+			assert(0, "Overflow pages and stuff " ~ to!string(payloadEnd));
+		}
+	}
+
 	static Payload extractPayload(const ubyte[] startPayload,
 		Payload.SerialTypeCode typeCode) pure {
 		Payload p;
