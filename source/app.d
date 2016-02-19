@@ -8,6 +8,7 @@ import core.memory;
 import test;
 
 import std.algorithm : map, filter;
+import std.range : join;
 
 void* pageHandler(Database.BTreePage page, Database.PageRange pages, void* unused) {
 	string toPrint = page.header.to!string; //~ "\n" ~ page.toString(pages); 
@@ -65,6 +66,7 @@ auto getRowsOf(const Database db, const string tableName) {
 		.filter!(r => Database.extractPayload(r, 1).getAs!string == tableName)
 		.map!(r => Database.extractPayload(r, 3).getAs!uint)
 		.map!(n => handlePage!((pg, pages) => pg.getRows(pages))(db, n))
+		.join
 	)(rp, pages);
 }
 

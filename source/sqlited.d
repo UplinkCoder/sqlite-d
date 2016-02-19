@@ -406,7 +406,9 @@ struct Database {
 			offset += rowId.length;
 
 			auto payloadHeaderSize = VarInt(page[offset .. offset + 9]);
-
+			if (payloadHeaderSize > page.length) {
+				assert(0, "Overflowing payloadHeaders are currently not handeled");
+			}
 			auto typeCodes = processPayloadHeader(page[offset + payloadHeaderSize.length .. offset + payloadHeaderSize]);
 			offset += payloadHeaderSize;
 
