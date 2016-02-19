@@ -5,10 +5,10 @@ import sqlite.utils;
 
 struct_type[] deserialize(alias struct_type)(Row r) {
 	struct_type[1] instance;
-	foreach (member; __traits(allMembers, struct_type)) {
+	foreach (member,i; __traits(allMembers, struct_type)) {
 		alias type = typeof(__traits(getMember, member, instance[0]));
 		static if (!is(type == function)) {
-			__traits(getMember, member, instance[0]) = r.getAs!(type)(member);
+			__traits(getMember, member, instance[0]) = r.getAs!(type)(i);
 		}
 	}
 	return instance;
@@ -35,28 +35,65 @@ void* handlePageF(Database.BTreePage page,
 		return initialState;
 }
 
-void handlePage(alias pageHandler)(const Database db, const uint pageNumber) {
+template pageHandlerTypeP(alias pageHandler) {
+	alias pageHandlerTypeP = typeof((cast(const)Database.BTreePage.init));
+}
+
+template pageHandlerTypePP(alias pageHandler) {
+	alias pageHandlerTypePP = typeof(pageHandler(cast(const)Database.BTreePage.init, cast(const)Database.PageRange.init));
+}
+
+template handlerRetrunType(alias pageHandler) {
+	alias typePP = pageHandlerTypePP!pageHandler;
+	alias typeP = pageHandlerTypeP!pageHandler;
+
+	static if (is(typePP)) {
+		alias handlerRetrunType = typePP;
+	} else static if (is(typeP)) {
+		alias handlerRetrunType = typeP;
+	} else {
+		import std.conv;
+		static assert(0, "pageHandler has to be callable with (BTreePage) or (BTreePage, PageRange)" ~ typeof(pageHandler).stringof);
+	}
+}
+static assert (is(handlerRetrunType!((page, pages) => page)));
+/// this is often faster. because the PageRange is cached
+auto handlePage(alias pageHandler)(const Database db, const uint pageNumber) {
 	auto pageRange = db.pages();
 	return handlePage!pageHandler(pageRange[pageNumber], pageRange);
 }
 
 /// handlePage is used to itterate over interiorPages transparently
-void handlePage(alias pageHandler)(const Database.BTreePage page,
-		const Database.PageRange pages) {
-//	typeof(pageHandler(page, pages))[] rv;
+RR handlePage(alias pageHandler, RR = handlerRetrunType!(pageHandler)[])(const Database.BTreePage page,
+		const Database.PageRange pages,  RR returnRange = RR.init) {
+	alias hrt = handlerRetrunType!(pageHandler);
+	enum nullReturnHandler = is(hrt == void) || is(hrt == typeof(null));
+	pragma(msg, nullReturnHandler);
+	if (returnRange is RR.init && RR.init == null && !nullReturnHandler) {
+
+	}
 
 	switch (page.pageType) with (Database.BTreePage.BTreePageType) {
 
 	case tableLeafPage: {
 			static if (is(typeof(pageHandler(page, pages)))) {
-				pageHandler(page, pages);
+				static if (nullReturnHandler) {
+					pageHandler(page, pages);
+					break;
+				} else {
+					return [pageHandler(page, pages)];
+				}
 			} else static if (is(typeof(pageHandler(page)))) {
-				pageHandler(page);
+				static if (nullReturnHandler) {
+					pageHandler(page);
+					break;
+				} else {
+					return [pageHandler(page)];
+				}
 			} else {
 				import std.conv;
 				static assert(0, "pageHandler has to be callable with (BTreePage) or (BTreePage, pagesRange)" ~ typeof(pageHandler).stringof);
 			}
-			break;
 		}
 
 	case tableInteriorPage: {
@@ -71,7 +108,13 @@ void handlePage(alias pageHandler)(const Database.BTreePage page,
 			pageNumbers ~= page.header._rightmostPointer;
 			foreach (pageIndex; pageNumbers) {
 				auto _page = pages[pageIndex - 1];
-				handlePage!pageHandler(_page, pages);
+				static if (nullReturnHandler) {
+					handlePage!pageHandler(_page, pages);
+				} else {
+					returnRange ~= handlePage!pageHandler(_page, pages);
+				}
+
+
 			}
 			break;
 		}
@@ -81,5 +124,7 @@ void handlePage(alias pageHandler)(const Database.BTreePage page,
 
 		assert(0, "pageType not supported" ~ to!string(page.pageType));
 	}
+
+	return returnRange;
 
 }
