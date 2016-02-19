@@ -107,10 +107,6 @@ struct Database {
 						length = (v - 12) / 2;
 					}
 				} else {
-					debug {
-						import std.stdio;
-						if (!__ctfe) writeln(v);
-					}
 					type = cast(SerialTypeCodeEnum) v;
 					final switch (type) with (SerialTypeCodeEnum) {
 					case NULL:
@@ -813,14 +809,20 @@ struct Database {
 	static auto extractPayload(T...)(const Row r, T colNums) {
 		uint offset;
 		uint lastCol;
+		import std.traits : allSatisfy;
 		static assert (T.length != 0, "extractPayload needs at least one argument");
+		static assert(allSatisfy!(a => (is(a : int), T)), "extract Payload only takes integer arguments");
+
+		import std.algorithm : max, isSorted;
+		assert(r.typeCodes.length > max(colNums, 0));
+		assert(isSorted([colNums]));
 
 		static if (T.length > 1) {
 			Payload[T.length] result;
 		}
 
 		import std.algorithm : isSorted;
-		assert(isSorted([colNums]));
+
 
 		foreach (n,colNum;colNums) {
 			foreach(i; lastCol .. colNum) {
