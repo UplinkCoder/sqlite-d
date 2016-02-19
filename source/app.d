@@ -35,19 +35,25 @@ auto pn_() {
 	Database.Row[] rows;
 	import std.algorithm : map, filter;
 	import std.array : array;
+	import std.typecons : tuple, Tuple;
 	auto tablesInDB = handlePage!(
 		(page,pages) => 
 		page.getRows(pages)
-	//	.map!(r => extractPayload!(0, 4)(r))
-	//	.filter!(p => p[0].getAs!string == "table")
-	//	.map!(p => p[1].getAs!uint)
+		.map!(r => extractPayload(r, 0, 1, 3))
+		//this will give you a tuple of payloads
+		//0 is the tableType ("index" || "table")
+		//1 is the tableName
+		//3 is the rootPage of the table
+		//pefer getting multiple colums at one
+		// it's much much faster!
+		.map!(p => p[2].getAs!uint)
 	) (db, 0);
 
 	auto tableTypes = handlePage!(
 		(page,pages) => (page.getRows(pages)).map!(r => Database.extractPayload(r, 0).getAs!string == "table").array
 	)(rp, pages);
 
-	return tableTypes;
+	return tablesInDB;
 }
 
 auto getTableNames(const Database db) {

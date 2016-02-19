@@ -5,7 +5,7 @@ import sqlite.utils;
 
 struct_type[] deserialize(alias struct_type)(Row r) {
 	struct_type[1] instance;
-	foreach (member,i; __traits(allMembers, struct_type)) {
+	foreach (i, member; __traits(derivedMembers, struct_type)) {
 		alias type = typeof(__traits(getMember, member, instance[0]));
 		static if (!is(type == function)) {
 			__traits(getMember, member, instance[0]) = r.getAs!(type)(i);

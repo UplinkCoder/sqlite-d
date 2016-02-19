@@ -810,14 +810,19 @@ struct Database {
 //		}
 	}
 
-	static auto extractPayload(T...)(const Row r) {
+	static auto extractPayload(T...)(const Row r, T colNums) {
 		uint offset;
 		uint lastCol;
-		Payload[T.length] result;
+		static assert (T.length != 0, "extractPayload needs at least one argument");
+
+		static if (T.length > 1) {
+			Payload[T.length] result;
+		}
 
 		import std.algorithm : isSorted;
-		static assert(isSorted([T]));
-		foreach (n,colNum;T) {
+		assert(isSorted([colNums]));
+
+		foreach (n,colNum;colNums) {
 			foreach(i; lastCol .. colNum) {
 				offset += r.typeCodes[i].length;
 			}
@@ -825,32 +830,21 @@ struct Database {
 			auto payloadEnd = offset + r.typeCodes[colNum].length;
 		
 			if (r.payloadStart.length > payloadEnd) {
-				result[n] = extractPayload(r.payloadStart[offset .. payloadEnd], r.typeCodes[colNum]);
+				static if (T.length == 1) {
+					return extractPayload(r.payloadStart[offset .. payloadEnd], r.typeCodes[colNum]);
+				} else {
+					result[n] = extractPayload(r.payloadStart[offset .. payloadEnd], r.typeCodes[colNum]);
+				}
 			} else {
 				import std.conv;
 				assert(0, "Overflow pages and stuff " ~ to!string(payloadEnd));
 			}
 			lastCol = colNum;
 		}
-		return result;
-	}
-
-
-	static auto extractPayload(const Row r, const uint colNum) {
-		uint offset;
-
-
-		foreach(i; 0 .. colNum) {
-			offset += r.typeCodes[i].length;
-		}
-
-		auto payloadEnd = offset + r.typeCodes[colNum].length;
-
-		if (r.payloadStart.length > payloadEnd) {
-			return extractPayload(r.payloadStart[offset .. payloadEnd], r.typeCodes[colNum]);
+		static if (T.length > 1) {
+			return result;
 		} else {
-			import std.conv;
-			assert(0, "Overflow pages and stuff " ~ to!string(payloadEnd));
+			assert(0);
 		}
 	}
 
