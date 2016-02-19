@@ -58,15 +58,17 @@ template handlerRetrunType(alias pageHandler) {
 }
 static assert (is(handlerRetrunType!((page, pages) => page)));
 /// this is often faster. because the PageRange is cached
-auto handlePage(alias pageHandler)(const Database db, const uint pageNumber) {
+auto handlePage(alias pageHandler, RR = handlerRetrunType!(pageHandler)[])(const Database db, const uint pageNumber, RR returnRange = RR.init) {
 	auto pageRange = db.pages();
-	return handlePage!pageHandler(pageRange[pageNumber], pageRange);
+	return handlePage!pageHandler(pageRange[pageNumber], pageRange, returnRange);
 }
 
 /// handlePage is used to itterate over interiorPages transparently
 RR handlePage(alias pageHandler, RR = handlerRetrunType!(pageHandler)[])(const Database.BTreePage page,
 		const Database.PageRange pages,  RR returnRange = RR.init) {
 	alias hrt = handlerRetrunType!(pageHandler);
+	alias defaultReturnRangeType = hrt[];
+
 	enum nullReturnHandler = is(hrt == void) || is(hrt == typeof(null));
 	pragma(msg, nullReturnHandler);
 	if (returnRange is RR.init && RR.init == null && !nullReturnHandler) {
@@ -81,14 +83,23 @@ RR handlePage(alias pageHandler, RR = handlerRetrunType!(pageHandler)[])(const D
 					pageHandler(page, pages);
 					break;
 				} else {
-					return [pageHandler(page, pages)];
+					static if (is (RR == defaultReturnRangeType)) {
+						return [pageHandler(page, pages)];
+					} else {
+						return pageHandler(page, pages);
+					}
+
 				}
 			} else static if (is(typeof(pageHandler(page)))) {
 				static if (nullReturnHandler) {
 					pageHandler(page);
 					break;
 				} else {
-					return [pageHandler(page)];
+					static if (is (RR == defaultReturnRangeType)) {
+						return [pageHandler(page, pages)];
+					} else {
+						return pageHandler(page, pages);
+					}
 				}
 			} else {
 				import std.conv;
@@ -111,10 +122,8 @@ RR handlePage(alias pageHandler, RR = handlerRetrunType!(pageHandler)[])(const D
 				static if (nullReturnHandler) {
 					handlePage!pageHandler(_page, pages);
 				} else {
-					returnRange ~= handlePage!pageHandler(_page, pages);
+					returnRange ~= handlePage!pageHandler(_page, pages, returnRange);
 				}
-
-
 			}
 			break;
 		}

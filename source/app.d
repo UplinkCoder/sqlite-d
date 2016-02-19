@@ -7,6 +7,8 @@ import std.stdio;
 import core.memory;
 import test;
 
+import std.algorithm : map, filter;
+
 void* pageHandler(Database.BTreePage page, Database.PageRange pages, void* unused) {
 	string toPrint = page.header.to!string; //~ "\n" ~ page.toString(pages); 
 	writeln(toPrint);
@@ -17,7 +19,7 @@ void* countCellsHandler(Database.BTreePage page, Database.PageRange pages, void*
 	*cast(uint*)currentCount += page.header.cellsInPage;
 	return currentCount;
 }	
-static immutable ubyte[] test_s3db = cast(immutable ubyte[]) import("test.s3db");
+static immutable ubyte[] test_s3db = cast(immutable ubyte[]) import("test4.s3db");
 static immutable db = cast(immutable)Database(test_s3db, "");
 static immutable pages =  cast(immutable)db.pages();
 static immutable rp = cast(immutable)pages[0];
@@ -28,14 +30,42 @@ uint ct () {
 	return cnt;
 }
 auto pn_() {
-	string[] tableTypes;
+	alias extractPayload = Database.extractPayload;
 	Database.Row[] rows;
-	import std.algorithm : map;
+	import std.algorithm : map, filter;
 	import std.array : array;
-//	handlePage!(
-//		(page,pages) => (page.getRows(pages)).map!(r => Database.extractPayload(r, 0).getAs!string).array
-//	)(rp, pages);
+	auto tablesInDB = handlePage!(
+		(page,pages) => 
+		page.getRows(pages)
+	//	.map!(r => extractPayload!(0, 4)(r))
+	//	.filter!(p => p[0].getAs!string == "table")
+	//	.map!(p => p[1].getAs!uint)
+	) (db, 0);
+
+	auto tableTypes = handlePage!(
+		(page,pages) => (page.getRows(pages)).map!(r => Database.extractPayload(r, 0).getAs!string == "table").array
+	)(rp, pages);
+
 	return tableTypes;
+}
+
+auto getTableNames(const Database db) {
+	import std.array : array;
+	return handlePage!(
+		(page,pages) => (page.getRows(pages))
+		.filter!(r => Database.extractPayload(r, 0).getAs!string == "table")
+		.map!(r => Database.extractPayload(r, 1).getAs!string).array
+	)(db, 0);
+}
+
+auto getRowsOf(const Database db, const string tableName) {
+	return handlePage!(
+		(page,pages) => (page.getRows(pages))
+		.filter!(r => Database.extractPayload(r, 0).getAs!string == "table")
+		.filter!(r => Database.extractPayload(r, 1).getAs!string == tableName)
+		.map!(r => Database.extractPayload(r, 3).getAs!uint)
+		.map!(n => handlePage!((pg, pages) => pg.getRows(pages))(db, n))
+	)(rp, pages);
 }
 
 
@@ -63,14 +93,19 @@ int main(string[] args) {
 //		handlePageF(db.pages[page], db.pages, &pageHandler);
 		import std.datetime;
 		const _page = db.pages[pageNr];
-		writeln(db.pages[1].getRows(db.pages));
+		import std.range : join;
+		foreach (tableName;getTableNames(db).join) {
+		//	writeln(db.getRowsOf(tableName));
+		}
+	//	writeln(db.pages[1].getRows(db.pages));
 		Database.MasterTableSchema[] schemas;
-		Database.Row[] rows;
+		//Database.Row[] rows;
 
 
-		handlePage!(
-			(page, pages) => rows ~= page.getRows(pages) 
-		)(db, 0);
+//		auto rows = handlePage!(
+//			(page, pages) => page.getRows(pages)
+//		) (db, 0);
+//		writeln(rows);
 		uint fn() {
 			uint cnt;
 			handlePageF(cast(Database.BTreePage)_page, db.pages, &countCellsHandler, &cnt);

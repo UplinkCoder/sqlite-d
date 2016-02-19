@@ -173,6 +173,7 @@ struct Database {
 	}
 
 	static struct Row {
+		const long payloadSize;
 		const Payload.SerialTypeCode[] typeCodes;
 		const ubyte[] payloadStart;
 //		Payload[] colums;
@@ -396,7 +397,6 @@ struct Database {
 		}
 		private
 		Row getRow(const uint cellPointer, const PageRange pages) pure const {
-
 			uint offset = cellPointer;
 			
 			auto payloadSize = VarInt(page[offset .. offset + 9]);
@@ -404,33 +404,13 @@ struct Database {
 			
 			auto rowId = VarInt(page[offset .. offset + 9]);
 			offset += rowId.length;
-			
-			
+
 			auto payloadHeaderSize = VarInt(page[offset .. offset + 9]);
 
 			auto typeCodes = processPayloadHeader(page[offset + payloadHeaderSize.length .. offset + payloadHeaderSize]);
 			offset += payloadHeaderSize;
 
-			if (payloadSize < page.length - 35) {
-//				foreach(i, typeCode; typeCodes) {
-//					row.colums[i] = extractPayload(page[offset .. offset + typeCode.length], typeCode);
-//					offset += typeCode.length;
-//				}
-			} else {
-				auto overflowInfo = OverflowInfo();
-
-	//			overflowInfo.remainingTotalPayload = cast(uint)payloadSize;
-	//			overflowInfo.payloadOnFirstPage = 
-	//				payloadOnPage(cast(uint)(payloadSize)) - cast(uint)payloadHeaderSize;
-
-	//			foreach(i, typeCode; typeCodes) {
-	//				row.colums[i] = extractPayload(page[offset .. $], typeCode,
-	//					&overflowInfo, pages);
-	//			}
-			//	assert("we don't handle overflow");
-			}
-			return Row(typeCodes, page[offset .. $]);
-				
+			return Row(payloadSize, typeCodes, page[offset .. $]);
 		}
 
 //		string toString(PageRange pages) {
@@ -828,8 +808,36 @@ struct Database {
 //		}
 	}
 
-	static Payload extractPayload(const Row r, const uint colNum) {
+	static auto extractPayload(T...)(const Row r) {
 		uint offset;
+		uint lastCol;
+		Payload[T.length] result;
+
+		import std.algorithm : isSorted;
+		static assert(isSorted([T]));
+		foreach (n,colNum;T) {
+			foreach(i; lastCol .. colNum) {
+				offset += r.typeCodes[i].length;
+			}
+		
+			auto payloadEnd = offset + r.typeCodes[colNum].length;
+		
+			if (r.payloadStart.length > payloadEnd) {
+				result[n] = extractPayload(r.payloadStart[offset .. payloadEnd], r.typeCodes[colNum]);
+			} else {
+				import std.conv;
+				assert(0, "Overflow pages and stuff " ~ to!string(payloadEnd));
+			}
+			lastCol = colNum;
+		}
+		return result;
+	}
+
+
+	static auto extractPayload(const Row r, const uint colNum) {
+		uint offset;
+
+
 		foreach(i; 0 .. colNum) {
 			offset += r.typeCodes[i].length;
 		}
@@ -964,7 +972,7 @@ auto apply(alias handler)(Database.Payload p) {
 		static if (__traits(compiles, handler(p._string))) {
 			return handler(p._string);
 		} else {
-			assert(0);
+			assert(0,"handler " ~ typeof(handler).stringof ~ " cannot be called with string");
 		}
 
 	}
