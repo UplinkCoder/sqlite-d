@@ -20,7 +20,7 @@ void* countCellsHandler(Database.BTreePage page, Database.PageRange pages, void*
 	*cast(uint*)currentCount += page.header.cellsInPage;
 	return currentCount;
 }	
-static immutable ubyte[] test_s3db = cast(immutable ubyte[]) import("test4.s3db");
+static immutable ubyte[] test_s3db = cast(immutable ubyte[]) import("test.s3db");
 static immutable db = cast(immutable)Database(test_s3db, "");
 static immutable pages =  cast(immutable)db.pages();
 static immutable rp = cast(immutable)pages[0];
@@ -85,10 +85,10 @@ auto getRootPageOf1(const Database db, const string tableName) {
 auto getRootPageOf2(const Database db, const string tableName) {
 	return handlePage!(
 		(page,pages) => (page.getRows(pages))
-		.map!(r => extractPayload(r, 0, 1, 3))
-		.filter!(r => r[0].getAs!string == "table")
-		.filter!(r => r[1].getAs!string != tableName)
-		.map!(r => r[2].getAs!uint)
+		.map!(r => r.colums(0, 1, 3))
+		.filter!(cols => cols[0].getAs!string == "table")
+		.filter!(cols => cols[1].getAs!string == tableName)
+		.map!(cols => cols[2].getAs!uint)
 		)(rp, pages).join.takeOne[0];
 }
 
