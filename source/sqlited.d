@@ -14,6 +14,7 @@ version (C_compat) {
 struct Database {
 	string dbFilename;
 	const ubyte[] data;
+	alias Row = BTreePage.Row;
 
 	SQLiteHeader _cachedHeader;
 
@@ -31,9 +32,6 @@ struct Database {
 	}
 
 	const(uint) usablePageSize() pure const {
-		if (__ctfe) {
-			return header.pageSize - header.reserved;
-		}
 		return header.pageSize - header.reserved;
 	}
 
@@ -168,68 +166,9 @@ struct Database {
 		alias type = typeCode.type;
 	}
 
-	static struct Row {
-		const long payloadSize;
-		const Payload.SerialTypeCode[] typeCodes;
-		const ubyte[] payloadStart;
-		const PageRange pages;
-
-		import std.traits : allSatisfy;
-		auto colums (T...)(T colNums) if (allSatisfy!(a => (is(a : int), T))) {
-			uint offset;
-			uint lastCol;
-			static assert (T.length != 0, "extractPayload needs at least one argument");
-			
-			import std.algorithm : min, max, isSorted;
-			assert(typeCodes.length > max(colNums, 0));
-			assert(isSorted([colNums]));
-			
-			static if (T.length > 1) {
-				Payload[T.length] result;
-			}
-
-			
-			foreach (n,colNum;colNums) {
-				foreach(i; lastCol .. colNum) {
-					offset += typeCodes[i].length;
-				}
-				
-				auto payloadEnd = offset + typeCodes[colNum].length;
-				
-				if (payloadStart.length > payloadEnd) {
-					static if (T.length == 1) {
-						return extractPayload(payloadStart[offset .. payloadEnd], typeCodes[colNum]);
-					} else {
-						result[n] = extractPayload(payloadStart[offset .. payloadEnd], typeCodes[colNum]);
-					}
-				} else {
-					debug {
-						import std.stdio;
-						writeln("pages", pages);
-					}
-					auto overflowInfo = OverflowInfo(payloadSize, pages.usablePageSize);
-					static if (T.length == 1) {
-						return extractPayload(payloadStart[min(offset, payloadEnd) .. min(payloadEnd, payloadStart.length)], typeCodes[colNum], &overflowInfo, pages);
-					} else {
-						result[n] = extractPayload(payloadStart[min(offset, payloadStart.length) .. min(payloadEnd, payloadStart.length)], typeCodes[colNum], &overflowInfo, pages);
-					}
-				}
-				lastCol = colNum;
-			}
-			static if (T.length > 1) {
-				return result;
-			} else {
-				assert(0);
-			}
-		}
-		//		Payload[] colums;
-		//	TableSchema* schema;
-		//		alias colums this;
-	}
-
 	static struct Table {
 		TableSchema schema;
-		Row[] rows;
+	//	Row[] rows;
 	}
 
 	static align(1) struct SQLiteHeader {
@@ -376,36 +315,91 @@ struct Database {
 		const ubyte[] page;
 		const uint headerOffset; 
 
-		uint payloadOnPage(const uint payloadSize) const pure {
-			auto m = ((page.length - 12) * 32 / 255) - 23;
-			import std.algorithm : min;
-			auto x1 = cast(uint) m + ((payloadSize - m) % (page.length - 4));
-			auto x2 = cast(uint) ((page.length - 12) * 64 / 255) - 23;
+//		uint payloadOnPage(const uint payloadSize) const pure {
+//			auto m = ((page.length - 12) * 32 / 255) - 23;
+//			import std.algorithm : min;
+//			auto x1 = cast(uint) m + ((payloadSize - m) % (page.length - 4));
+//			auto x2 = cast(uint) ((page.length - 12) * 64 / 255) - 23;
+//
+//			debug {
+//				import std.stdio;
+//
+//				writeln("M: ", m);
+//				writeln("payloadSize: ", payloadSize);
+//				writeln("x1: ", x1);
+//			}
+//
+//			final switch (header.pageType) with (typeof(header.pageType)) {
+//				case emptyPage:
+//				case tableInteriorPage:
+//					assert(0, "has no payload");
+//
+//				case tableLeafPage:
+//					return min(cast(uint)page.length - 35, x1);			
+//				case indexInteriorPage:
+//				case indexLeafPage:
+//					return min(x1, x2);
+//
+//			}
+//		}
 
-			debug {
-				import std.stdio;
+		static struct Row {
+			const PageRange pages;
+			const uint payloadSize;
+			const uint payloadHeaderSize;
+			PayloadHeader payloadHeader;
+			const ubyte[] payloadStart;
 
-				writeln("M: ", m);
-				writeln("payloadSize: ", payloadSize);
-				writeln("x1: ", x1);
-			}
+			import std.traits : allSatisfy;
+			auto colums (T...)(T colNums) if (allSatisfy!(a => (is(a : int), T))) {
+				uint offset;
+				uint lastCol;
+				static assert (T.length != 0, "extractPayload needs at least one argument");
+				
+				import std.algorithm : min, max, isSorted;
+				//assert(typeCodes.length > max(colNums, 0));
+				assert(isSorted([colNums]));
+				
+				static if (T.length > 1) {
+					Payload[T.length] result;
+				}
+				
+				
+				foreach (n,colNum;colNums) {
+					foreach(i; lastCol .. colNum) {
+						offset += payloadHeader.front().length;
+						payloadHeader.popFront();
+					}
 
-			final switch (header.pageType) with (typeof(header.pageType)) {
-				case emptyPage:
-				case tableInteriorPage:
-					assert(0, "has no payload");
-
-				case tableLeafPage:
-
+					auto typeCode = payloadHeader.front();
+					auto payloadEnd = offset + typeCode.length;
 					
-				return min(cast(uint)page.length - 35, x1);			case indexInteriorPage:
-				case indexLeafPage:
-					return min(x1, x2);
-
+					if (payloadStart.length > payloadEnd) {
+						static if (T.length == 1) {
+							return extractPayload(payloadStart[offset .. payloadEnd], typeCode);
+						} else {
+							result[n] = extractPayload(payloadStart[offset .. payloadEnd], typeCode);
+						}
+					} else {
+						static if (T.length == 1) {
+							auto overflowInfo = OverflowInfo(payloadSize, pages.usablePageSize, payloadHeaderSize);
+						//	return extractPayload(payloadStart, typeCode, &overflowInfo, pages);
+							assert(0,"Sorry no overflow ... yet");
+						} else {
+						//	result[n] = extractPayload(payloadStart, typeCode, &overflowInfo, pages, offset);
+							assert(0,"Can't get multiple payloads form overflow-pages... yet");
+						}
+					}
+					lastCol = colNum;
+				}
+				static if (T.length > 1) {
+					return result;
+				} else {
+					assert(0);
+				}
 			}
 		}
 
-		
 
 		Row[] getRows(const PageRange pages) pure const {
 			version(Multithreaded) {
@@ -444,13 +438,14 @@ struct Database {
 			offset += rowId.length;
 
 			auto payloadHeaderSize = VarInt(page[offset .. offset + 9]);
+
 			if (payloadHeaderSize > page.length) {
 				assert(0, "Overflowing payloadHeaders are currently not handeled");
 			}
-			auto typeCodes = processPayloadHeader(page[offset + payloadHeaderSize.length .. offset + payloadHeaderSize]);
+			auto ph = PayloadHeader(page[offset + payloadHeaderSize.length .. offset + payloadHeaderSize]);
 			offset += payloadHeaderSize;
 
-			return Row(payloadSize, typeCodes, page[offset .. $], pages);
+			return Row(pages, cast(uint) payloadSize, cast(uint) payloadHeaderSize , ph, page[offset .. $]);
 		}
 
 		//		string toString(PageRange pages) {
@@ -714,21 +709,29 @@ struct Database {
 			return (header()).pageType;
 		}
 
-		auto processPayloadHeader(const ubyte[] payloadHeader) const pure {
-			Payload.SerialTypeCode[] serialTypeCodes;
-			if (!__ctfe) {
-				serialTypeCodes.reserve(cast(uint) payloadHeader.length);
-			}
+		struct PayloadHeader {
+			const ubyte[] payloadHeader;
 			uint offset;
-
-			while (offset < payloadHeader.length) {
-				import std.algorithm : min;
-				auto typeCode = VarInt(payloadHeader[offset .. min(offset + 9, payloadHeader.length)]);
-				serialTypeCodes ~= Payload.SerialTypeCode(typeCode);
-				offset += typeCode.length;
+			uint _length;
+			 
+			void popFront() {
+				assert(offset < payloadHeader.length);
+				offset += _length;
+				_length = 0;
 			}
-			return serialTypeCodes;
+
+			Payload.SerialTypeCode front() {
+				auto v = VarInt(payloadHeader[offset .. $]);
+				_length = cast(uint)v.length;
+				return Payload.SerialTypeCode(v);
+			}
+
+			bool empty() {
+				return offset == payloadHeader.length;
+			}
 		}
+
+
 	}
 }
 
@@ -736,29 +739,20 @@ struct Database {
 struct OverflowInfo {
 	uint remainingTotalPayload;
 	uint nextPageIdx;
-	const uint payloadOnFirstPage;
+	uint payloadOnFirstPage;
 	uint pageOffset;
 
-	this(const long payloadSize, const uint usablePageSize) {
-		const ps = cast(const) (cast(uint) payloadSize);
-		this.remainingTotalPayload = ps;
-		payloadOnFirstPage = payloadOnTableLeafPage(ps, usablePageSize);
+	this(uint payloadSize,  uint usablePageSize, uint payloadHeaderSize) {
+		import std.algorithm : min;
 
-	}
-	
-	static const(uint) payloadOnTableLeafPage(const uint payloadSize, const uint usablePageSize) pure {
 		auto m = ((usablePageSize - 12) * 32 / 255) - 23;
-		const x1 = cast(uint) m + ((payloadSize - m) % (usablePageSize - 4));
+		auto x1 = cast(uint) m + ((payloadSize - m) % (usablePageSize - 4));
 		debug {
 			import std.stdio;
-			writeln("m ",m,"x1 ",x1,"ups ",usablePageSize);
+			writeln("x1:",x1);
 		}
-		import std.algorithm : min;
-		return min(usablePageSize - 35, x1);
-	}
-
-	const(int) pofp() pure const {
-		return payloadOnFirstPage - pageOffset;
+		remainingTotalPayload = payloadSize;
+		payloadOnFirstPage = min(usablePageSize - 35, x1) - payloadHeaderSize;
 	}
 }
 
@@ -768,7 +762,7 @@ static Database.Payload extractPayload(
 	const ubyte[] startPayload,
 	const Database.Payload.SerialTypeCode typeCode,
 	OverflowInfo* overflowInfo,
-	const Database.PageRange pages
+	const Database.PageRange pages,
 	) pure {
 	
 	static void gotoNextPage(OverflowInfo* overflowInfo,
@@ -777,7 +771,7 @@ static Database.Payload extractPayload(
 		assert(overflowInfo.nextPageIdx != 0, "No next Page to go to");
 		debug {
 			import std.stdio;
-			writeln("goto page : ", overflowInfo.nextPageIdx);
+			writeln("goto page : ", *overflowInfo);
 		}
 		auto nextPage = pages[(overflowInfo.nextPageIdx) - 1];
 		BigEndian!uint np;
@@ -786,24 +780,27 @@ static Database.Payload extractPayload(
 		
 		overflowInfo.pageOffset = uint.sizeof;
 	}
-	
-	if (!overflowInfo.nextPageIdx && overflowInfo.pofp > typeCode.length) {
-		debug {
-			import std.stdio;
-			writeln("npidx: ", overflowInfo.nextPageIdx, " tc.len: ", typeCode.length, " ofp.pgOff: ", overflowInfo.pageOffset, " ofp.pofp: ", overflowInfo.payloadOnFirstPage);
-		}
-		overflowInfo.remainingTotalPayload -= typeCode.length;
 
-		overflowInfo.pageOffset += typeCode.length;
+	auto pageSlice = overflowInfo.nextPageIdx == 0 
+			? startPayload
+			: pages[overflowInfo.nextPageIdx].page;
+
+	if (overflowInfo.payloadOnFirstPage >= typeCode.length) {
+		auto _length = typeCode.length;
+		overflowInfo.remainingTotalPayload -= _length;
+		overflowInfo.payloadOnFirstPage -= _length;
+
+		auto oldOffset = overflowInfo.pageOffset;
+		overflowInfo.pageOffset += _length;
 		if (overflowInfo.payloadOnFirstPage == 0
 			&& overflowInfo.remainingTotalPayload > 0) {
 			assert(0, "I do not expect us to ever get here"
 				"If we ever do, uncomment the two lines below and delete this assert");
 			//	nextPageIdx = *cast(uint*)*startPayload;
-			//	gotoNextPage(&nextPageIdx, pages, startPayload);
+			//	gotoNextPage(overflowInfo, pages);
 		}
-		
-		return extractPayload(startPayload[overflowInfo.pageOffset .. $ - uint.sizeof], typeCode);
+
+		return extractPayload(pageSlice[oldOffset .. oldOffset + _length], typeCode);
 	} else { // typeCode.length > payloadOnFirstPage
 		// We need to consolidate the Payload here...
 		// let's assume SQLite is sane and does not split primitive types in the middle
@@ -816,22 +813,26 @@ static Database.Payload extractPayload(
 			_payloadBuffer.reserve(cast(uint) typeCode.length);
 		}
 
-		auto pofp = overflowInfo.pofp;
-		if (overflowInfo.nextPageIdx == 0 && pofp > 0) {
+
+		if (overflowInfo.payloadOnFirstPage != 0) {
+			auto pofp = overflowInfo.payloadOnFirstPage;
+			auto pofp_plus_offset = pofp + overflowInfo.pageOffset;
+
 			debug {
 				import std.stdio;
-				writeln("pofp", pofp, *overflowInfo, " sp.ln ",startPayload);
+				writeln("pofp",  *overflowInfo, " sp.ln ", pageSlice.length - 4);
 			}
-			_payloadBuffer ~= startPayload[overflowInfo.pageOffset .. pofp].dup;
+			_payloadBuffer ~= pageSlice[overflowInfo.pageOffset .. pofp_plus_offset].dup;
 			
 			remainingBytesOfPayload -= pofp;
 			overflowInfo.remainingTotalPayload -= pofp;
-			
 			overflowInfo.nextPageIdx = 
-				*(cast(BigEndian!uint*) startPayload[pofp .. 4]);
+				*(cast(BigEndian!uint*) startPayload[pofp_plus_offset .. pofp_plus_offset + 4]);
+			overflowInfo.payloadOnFirstPage = 0;
+			gotoNextPage(overflowInfo, pages);
 		}
 
-		gotoNextPage(overflowInfo, pages);
+
 		
 		
 		for (;;) {
@@ -857,22 +858,19 @@ static Database.Payload extractPayload(
 			}
 			remainingBytesOfPayload -= readBytes;
 			
-			_payloadBuffer ~= pages[overflowInfo.nextPageIdx].page[0 .. readBytes];
-			debug {
-				import std.stdio;
-				
-				//	writeln("isAddedtoPayload: ",
-				//		cast(ubyte[])(*startPayload)[0 .. readBytes]);
-				//	writeln(stderr, "after Payload: ",
-				//		*cast(BigEndian!uint*)(*startPayload + readBytes), 
-				//		"remaingTotalPayload : ", overflowInfo.remainingTotalPayload,
-				//		"remaingPayload : ", remainingBytesOfPayload);
-			}
-			
+			_payloadBuffer ~= pages[overflowInfo.nextPageIdx].page[uint.sizeof .. readBytes + uint.sizeof];
+
 			if (remainingBytesOfPayload == 0) {
 				overflowInfo.remainingTotalPayload -= _payloadBuffer.length;
-				overflowInfo.pageOffset += _payloadBuffer.length;
-				assert(_payloadBuffer.length == typeCode.length);
+				assert(overflowInfo.pageOffset == uint.sizeof);
+				overflowInfo.pageOffset += readBytes;
+				overflowInfo.payloadOnFirstPage = pages.usablePageSize - readBytes;
+				if(_payloadBuffer.length != typeCode.length) {
+					debug {
+					import std.stdio;
+					writeln("pbl:",_payloadBuffer.length," tcl",typeCode.length );
+					}
+				}
 
 				return extractPayload(cast(const)_payloadBuffer, typeCode);
 			} else {

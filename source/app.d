@@ -7,8 +7,9 @@ import std.stdio;
 import core.memory;
 import test;
 
-import std.algorithm : map, filter;
+import std.algorithm : map, filter, count;
 import std.range : join, takeOne;
+import std.typecons : tuple;
 
 void* pageHandler(Database.BTreePage page, Database.PageRange pages, void* unused) {
 	string toPrint = page.header.to!string; //~ "\n" ~ page.toString(pages); 
@@ -20,7 +21,7 @@ void* countCellsHandler(Database.BTreePage page, Database.PageRange pages, void*
 	*cast(uint*)currentCount += page.header.cellsInPage;
 	return currentCount;
 }	
-static immutable ubyte[] test_s3db = cast(immutable ubyte[]) import("test.s3db");
+static immutable ubyte[] test_s3db = cast(immutable ubyte[]) import("test4.s3db");
 static immutable db = cast(immutable)Database(test_s3db, "");
 static immutable pages =  cast(immutable)db.pages();
 static immutable rp = cast(immutable)pages[0];
@@ -43,7 +44,7 @@ auto pn_() {
 		(page,pages) => 
 		page.getRows(pages)
 		.map!(r => r.colums(0, 1, 3))
-		.map!(p => p[2].getAs!uint)
+		.map!(p => tuple(p[2].getAs!uint, p[1].getAs!string)).array
 	) (db, 0);
 
 	auto tableTypes = handlePage!(
@@ -58,7 +59,7 @@ auto getTableNames(const Database db) {
 	return handlePage!(
 		(page,pages) => (page.getRows(pages))
 		.filter!(r => r.colums(0).getAs!string == "table")
-		.map!(r => r.colums(1).getAs!string).array
+		.map!(r => r.colums(1).getAs!string)
 	)(db, 0);
 }
 
@@ -79,18 +80,18 @@ auto getRootPageOf1(const Database db, const string tableName) {
 		.filter!(r => r.colums(0).getAs!string == "table")
 		.filter!(r => r.colums(1).getAs!string == tableName)
 		.map!(r => r.colums(3).getAs!uint)
-		)(rp, pages).join.takeOne[0];
+		)(rp, pages).join;
 }
 
-auto getRootPageOf2(const Database db, const string tableName) {
-	return handlePage!(
-		(page,pages) => (page.getRows(pages))
-		.map!(r => r.colums(0, 1, 3))
-		.filter!(cols => cols[0].getAs!string == "table")
-		.filter!(cols => cols[1].getAs!string == tableName)
-		.map!(cols => cols[2].getAs!uint)
-		)(rp, pages).join.takeOne[0];
-}
+//auto getRootPageOf2(const Database db, const string tableName) {
+//	return handlePage!(
+//		(page,pages) => (page.getRows(pages))
+//		.map!(r => r.colums(0, 1, 3))
+//		.filter!(cols => cols[0].getAs!string == "table")
+//		.filter!(cols => cols[1].getAs!string == tableName)
+//		.map!(cols => cols[2].getAs!uint)
+//		)(rp, pages).join.takeOne[0];
+//}
 
 pragma(msg, db.header.pageSize, db.usablePageSize, ct, pn_);
 
@@ -100,7 +101,7 @@ int main(string[] args) {
 //	fn_();
 	string filename = (args.length > 1 ? args[1] : "example/test.s3db");
 	auto pageNr = (args.length > 2 ? parse!(int)(args[2]) : 0);
-	writefln("opening file %s", filename); 
+//	writefln("opening file %s", filename); 
 //	auto db = new Database(filename);
 //	static if (is(typeof(db) : typeof(null))) {
 //		auto db = db;
@@ -110,16 +111,16 @@ int main(string[] args) {
 	if (&db !is null) {
 	//	writeln("it appears to be a database");
 	//	writeln(db.pages[page].header);
-	//	writeln("pageSize : ",db.header.pageSize);
+		writeln("pageSize : ",db.header.pageSize);
 
 //		writeln(db.pages[page].getRows(db.pages));
 //		handlePageF(db.pages[page], db.pages, &pageHandler);
 		import std.datetime;
 		const _page = db.pages[pageNr];
-		writeln(db.getRootPageOf2("Artist"));
-	//	foreach(row;db.getRowsOf("Artist")) {
-	//		writeln(row.map!(r => extractPayload(r, 1).getAs!string));
-	//	}
+		writeln(db.getRootPageOf1("Artist"));
+		foreach(row;db.getTableNames) {
+			writeln(row);
+		}
 
 	//	writeln(db.pages[1].getRows(db.pages));
 		Database.MasterTableSchema[] schemas;
@@ -135,8 +136,7 @@ int main(string[] args) {
 			//	uint cnt;
 			//	Database.Row[][] rows; 
 			//	handlePage!((a, b) =>  writeln(a.getRows(b)))(_page, db.pages);
-			//	writeln(_page.header);
-			getRootPageOf2(db, "Artist");
+			getRootPageOf1(db, "Artist");
 			
 		}
 
@@ -146,17 +146,10 @@ int main(string[] args) {
 //			handlePageF(cast(Database.BTreePage)_page, db.pages, &countCellsHandler, &cnt);
 //			return cnt;
 		}
-	//	 writeln(fn);
 
 
 
-		foreach(i;0 .. 32) {
-
-			auto bm = comparingBenchmark!(fn,fn2,12);
-			writeln(bm.point);
-			auto bm2 = benchmark!(fn,fn2)(64);
-			writeln((bm2[0]-bm2[1]) / 64);
-		}
+		foreach(i;0 .. 32) {	}
 //	//	writefln("page has %d cells", cellCount);
 //	
 //foreach(i; 1.. db.pages.length ){writeln("page [",i,"]\n",db.pages[i]);}
