@@ -8,7 +8,7 @@ import core.memory;
 import test;
 
 import std.algorithm : map, filter;
-import std.range : join;
+import std.range : join, takeOne;
 
 void* pageHandler(Database.BTreePage page, Database.PageRange pages, void* unused) {
 	string toPrint = page.header.to!string; //~ "\n" ~ page.toString(pages); 
@@ -31,26 +31,23 @@ uint ct () {
 	return cnt;
 }
 auto pn_() {
-	alias extractPayload = Database.extractPayload;
+
 	Database.Row[] rows;
 	import std.algorithm : map, filter;
 	import std.array : array;
-	import std.typecons : tuple, Tuple;
+	struct NumberName {
+		uint pagenr;
+	}
+	
 	auto tablesInDB = handlePage!(
 		(page,pages) => 
 		page.getRows(pages)
-		.map!(r => extractPayload(r, 0, 1, 3))
-		//this will give you a tuple of payloads
-		//0 is the tableType ("index" || "table")
-		//1 is the tableName
-		//3 is the rootPage of the table
-		//pefer getting multiple colums at one
-		// it's much much faster!
+		.map!(r => r.colums(0, 1, 3))
 		.map!(p => p[2].getAs!uint)
 	) (db, 0);
 
 	auto tableTypes = handlePage!(
-		(page,pages) => (page.getRows(pages)).map!(r => Database.extractPayload(r, 0).getAs!string == "table").array
+		(page,pages) => (page.getRows(pages)).map!(r => r.colums(0).getAs!string == "table").array
 	)(rp, pages);
 
 	return tablesInDB;
@@ -60,22 +57,40 @@ auto getTableNames(const Database db) {
 	import std.array : array;
 	return handlePage!(
 		(page,pages) => (page.getRows(pages))
-		.filter!(r => Database.extractPayload(r, 0).getAs!string == "table")
-		.map!(r => Database.extractPayload(r, 1).getAs!string).array
+		.filter!(r => r.colums(0).getAs!string == "table")
+		.map!(r => r.colums(1).getAs!string).array
 	)(db, 0);
 }
 
 auto getRowsOf(const Database db, const string tableName) {
 	return handlePage!(
 		(page,pages) => (page.getRows(pages))
-		.filter!(r => Database.extractPayload(r, 0).getAs!string == "table")
-		.filter!(r => Database.extractPayload(r, 1).getAs!string == tableName)
-		.map!(r => Database.extractPayload(r, 3).getAs!uint)
+		.filter!(r => r.colums(0).getAs!string == "table")
+		.filter!(r => r.colums(1).getAs!string == tableName)
+		.map!(r => r.colums(3).getAs!uint)
 		.map!(n => handlePage!((pg, pages) => pg.getRows(pages))(db, n))
 		.join
 	)(rp, pages);
 }
 
+auto getRootPageOf1(const Database db, const string tableName) {
+	return handlePage!(
+		(page,pages) => (page.getRows(pages))
+		.filter!(r => r.colums(0).getAs!string == "table")
+		.filter!(r => r.colums(1).getAs!string == tableName)
+		.map!(r => r.colums(3).getAs!uint)
+		)(rp, pages).join.takeOne[0];
+}
+
+auto getRootPageOf2(const Database db, const string tableName) {
+	return handlePage!(
+		(page,pages) => (page.getRows(pages))
+		.map!(r => extractPayload(r, 0, 1, 3))
+		.filter!(r => r[0].getAs!string == "table")
+		.filter!(r => r[1].getAs!string != tableName)
+		.map!(r => r[2].getAs!uint)
+		)(rp, pages).join.takeOne[0];
+}
 
 pragma(msg, db.header.pageSize, db.usablePageSize, ct, pn_);
 
@@ -101,10 +116,11 @@ int main(string[] args) {
 //		handlePageF(db.pages[page], db.pages, &pageHandler);
 		import std.datetime;
 		const _page = db.pages[pageNr];
-		import std.range : join;
-		foreach (tableName;getTableNames(db).join) {
-		//	writeln(db.getRowsOf(tableName));
-		}
+		writeln(db.getRootPageOf2("Artist"));
+	//	foreach(row;db.getRowsOf("Artist")) {
+	//		writeln(row.map!(r => extractPayload(r, 1).getAs!string));
+	//	}
+
 	//	writeln(db.pages[1].getRows(db.pages));
 		Database.MasterTableSchema[] schemas;
 		//Database.Row[] rows;
@@ -114,24 +130,33 @@ int main(string[] args) {
 //			(page, pages) => page.getRows(pages)
 //		) (db, 0);
 //		writeln(rows);
-		uint fn() {
-			uint cnt;
-			handlePageF(cast(Database.BTreePage)_page, db.pages, &countCellsHandler, &cnt);
-			return cnt;
-		}
-		 writeln(fn);
+
 		void fn2() {
-			uint cnt;
-			Database.Row[][] rows; 
-			handlePage!((a, b) =>  writeln(a.getRows(b)))(_page, db.pages);
-		//	writeln(_page.header);
+			//	uint cnt;
+			//	Database.Row[][] rows; 
+			//	handlePage!((a, b) =>  writeln(a.getRows(b)))(_page, db.pages);
+			//	writeln(_page.header);
+			getRootPageOf2(db, "Artist");
+			
 		}
-//		foreach(i;0 .. 32) {
-//			auto bm = benchmark!(fn,fn2)(1);
-//			writeln(bm[1]-bm[0]);
-//			bm = benchmark!(fn,fn2)(4);
-//			writeln((bm[1]-bm[0]) / 4);
-//		}
+
+		void fn() {
+			getRootPageOf1(db, "Artist");
+//			uint cnt;
+//			handlePageF(cast(Database.BTreePage)_page, db.pages, &countCellsHandler, &cnt);
+//			return cnt;
+		}
+	//	 writeln(fn);
+
+
+
+		foreach(i;0 .. 32) {
+
+			auto bm = comparingBenchmark!(fn,fn2,12);
+			writeln(bm.point);
+			auto bm2 = benchmark!(fn,fn2)(64);
+			writeln((bm2[0]-bm2[1]) / 64);
+		}
 //	//	writefln("page has %d cells", cellCount);
 //	
 //foreach(i; 1.. db.pages.length ){writeln("page [",i,"]\n",db.pages[i]);}
@@ -155,7 +180,7 @@ int main(string[] args) {
 		//foreach(page;db.pages) {
 		//	writeln(page);
 		//}
-		return fn();
+		return 0;
 	} else {
 //		writeln("invalid database or header corrupted");
 	}

@@ -1,13 +1,6 @@
 module sqlite.varint;
 import sqlite.utils;
 
-auto LIKELY(T)(T t) {return t;}
-
-//version = Benchmark;
-
-version(Benchmark) {
-	import std.datetime;
-}
 
 /+string varintLengthCheck(uint maxLen) {
 	string result;
@@ -19,7 +12,7 @@ version(Benchmark) {
 
 static align(1) struct VarInt {
 	const ubyte[] byteArray;
-	pure nothrow /*@nogc*/ :
+	pure nothrow @nogc :
 align(1):
 
 	alias toBeLong this;
@@ -27,17 +20,11 @@ align(1):
 
 	@property BigEndian!long toBeLongImpl() {
 		long tmp;
-		version (Benchmark) {
-			static uint ctr;
-			static TickDuration[512] durations;
-			static StopWatch toBeLongWatch;
-			toBeLongWatch.start;
-		}
 
 		uint length = length();
 		BigEndian!long result;
 		
-		//TODO unroll this loop + SIMD
+		// The hottest loop in the whole program!
 		foreach(idx;0..length) {
 			ubyte val = byteArray[idx];
 			long maskedVal = (cast(long)val & 0x7fUL); // mask 8th bit
@@ -52,31 +39,14 @@ align(1):
 		result = tmp;
 
 
-				version (Benchmark) {
-					import std.stdio;
-					writeln(toBeLongWatch.peek);
-				}
 		return result;
 	}
-
-	static uint lengthInVarInt(long val) {
-		uint length = sizeInBytes(val);
-		return length;
-	}
-
-	//	@property void toBeLong(BigEndian!long val) {
-	//		uint length = bsf(val) / 7;
-
-	//	}
 
 	@property uint length ()  {
 		return _length(byteArray);
 	}
 
 	static uint _length(const ubyte[] arr) {
-		version(benchmark) {
-			static StopWatch lengthWatch;
-		}
 
 		foreach(idx;0..9) {
 			if(arr[idx] & (1 << 7)) {
@@ -87,16 +57,8 @@ align(1):
 			assert(0, "we should never get here");
 		}
 		return 9;
-
-		version (benchmark) {
-			scope (exit) {
-				
-			} 
-		} 
 	}
 
-	version(Benchmark) {} else 
-	
 	static assert(_length((cast(ubyte[])[0x6d,0x00])) == 1);
 	static assert(_length((cast(ubyte[])[0x7f,0x00])) == 1);
 	static assert(_length((cast(ubyte[])[0x82,0x12])) == 2);
