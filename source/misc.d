@@ -22,8 +22,34 @@ struct_type[] deserialize(alias struct_type)(Row[] ra) {
 	return result;
 }
 
+/// usage : table.select("name","surname").where!("age","sex", (age, sex) => sex.as!Sex == Sex.female, age.as!uint < 40))
+/// or table.select("name").where!((type) => type.as!string == "table")("type").as!string;
+/// or join().select()
+/+
+auto where(S,T...)(S selectResult, T )
+
+auto where(S,T...)(S selectResult) {
+	foreach(i,Element;T) {
+		static if (i == 0) {
+			static assert(is(Element == delegeate) || is(Element == function),
+				"first template argument to where has to be a delegate or a function");
+			static assert()
+		}
+	}
+}
+
+auto SQL(SQLElements...)(Database db) {
+//	static assert (allStatiesfy(isSQLElement!SQLElements))
+	foreach(elem;SQLElements) {
+		static if (isSelect!elem) {
+			//assert that there is just one select
+		} else static if (isWhere!elem) {
+			
+		}
+	}
+}
++/
 /// handlePage is used to itterate over interiorPages transparently
-/// NOTE handlePageF is slower then handle page. 
 void* handlePageF(Database.BTreePage page,
 		Database.PageRange pages,
 		void* function(Database.BTreePage, Database.PageRange, void*) pageHandlerF,

@@ -9,7 +9,7 @@ import test;
 
 import std.algorithm : map, filter, count;
 import std.range : join, takeOne;
-import std.typecons : tuple;
+//import std.typecons : tuple;
 
 void* pageHandler(Database.BTreePage page, Database.PageRange pages, void* unused) {
 	string toPrint = page.header.to!string; //~ "\n" ~ page.toString(pages); 
@@ -28,7 +28,7 @@ static immutable rp = cast(immutable)pages[0];
 
 uint ct () { 
 	uint cnt;
-	//handlePage!((page, pages) => cnt += page.header.cellsInPage)(rp, db.pages);
+	handlePage!((page, pages) => cnt += page.header.cellsInPage) (rp, db.pages);
 	return cnt;
 }
 auto pn_() {
@@ -43,8 +43,8 @@ auto pn_() {
 	auto tablesInDB = handlePage!(
 		(page,pages) => 
 		page.getRows(pages)
-		.map!(r => r.colums(0, 1, 3))
-		.map!(p => tuple(p[2].getAs!uint, p[1].getAs!string)).array
+		.map!(r => r.colums(1))
+		.map!(p => p.getAs!string).array
 	) (db, 0);
 
 	auto tableTypes = handlePage!(
@@ -68,7 +68,8 @@ auto getRowsOf(const Database db, const string tableName) {
 		(page,pages) => (page.getRows(pages))
 		.filter!(r => r.colums(0).getAs!string == "table")
 		.filter!(r => r.colums(1).getAs!string == tableName)
-		.map!(r => r.colums(3).getAs!uint)
+		.map!(r => r.colums(3).getAs!uint - 1)
+		.filter!(n => n != 0)
 		.map!(n => handlePage!((pg, pages) => pg.getRows(pages))(db, n))
 		.join
 	)(rp, pages);
@@ -79,21 +80,21 @@ auto getRootPageOf1(const Database db, const string tableName) {
 		(page,pages) => (page.getRows(pages))
 		.filter!(r => r.colums(0).getAs!string == "table")
 		.filter!(r => r.colums(1).getAs!string == tableName)
-		.map!(r => r.colums(3).getAs!uint)
+		.map!(r => r.colums(3).getAs!uint - 1)
 		)(rp, pages).join;
 }
 
-//auto getRootPageOf2(const Database db, const string tableName) {
-//	return handlePage!(
-//		(page,pages) => (page.getRows(pages))
-//		.map!(r => r.colums(0, 1, 3))
-//		.filter!(cols => cols[0].getAs!string == "table")
-//		.filter!(cols => cols[1].getAs!string == tableName)
-//		.map!(cols => cols[2].getAs!uint)
-//		)(rp, pages).join.takeOne[0];
-//}
+auto getRootPageOf2(const Database db, const string tableName) {
+	return handlePage!(
+		(page,pages) => (page.getRows(pages))
+		.map!(r => r.colums(0, 1, 3))
+		.filter!(cols => cols[0].getAs!string == "table")
+		.filter!(cols => cols[1].getAs!string == tableName)
+		.map!(cols => cols[2].getAs!uint-1)
+		)(rp, pages).join;
+}
 
-pragma(msg, db.header.pageSize, db.usablePageSize, ct, pn_);
+pragma(msg, pn_);
 
 int main(string[] args) {
 	import std.stdio;
@@ -117,10 +118,21 @@ int main(string[] args) {
 //		handlePageF(db.pages[page], db.pages, &pageHandler);
 		import std.datetime;
 		const _page = db.pages[pageNr];
-		writeln(db.getRootPageOf1("Artist"));
-		foreach(row;db.getTableNames) {
-			writeln(row);
+		StopWatch sw;
+
+		foreach(_; 0 .. 4096) {
+			string[] results;
+		
+			sw.start;
+			foreach(rows;db.getRowsOf("Album").join) {
+				import std.array : array;
+				results = rows.map!(row => row.colums(1).getAs!string).array;
+			}
+			sw.stop();
+		//	sw.reset();
 		}
+
+		writeln("Getting all entries of colum 1 in table Album 4096 times took ", sw.peek().msecs, "msecs");
 
 	//	writeln(db.pages[1].getRows(db.pages));
 		Database.MasterTableSchema[] schemas;

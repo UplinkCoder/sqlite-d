@@ -380,17 +380,21 @@ struct Database {
 						} else {
 							result[n] = extractPayload(payloadStart[offset .. payloadEnd], typeCode);
 						}
+					
 					} else {
 						static if (T.length == 1) {
 							auto overflowInfo = OverflowInfo(payloadSize, pages.usablePageSize, payloadHeaderSize);
-						//	return extractPayload(payloadStart, typeCode, &overflowInfo, pages);
-							assert(0,"Sorry no overflow ... yet");
+							return extractPayload(payloadStart, typeCode, &overflowInfo, pages);
+						//	assert(0,"Sorry no overflow ... yet");
 						} else {
-						//	result[n] = extractPayload(payloadStart, typeCode, &overflowInfo, pages, offset);
+						//	result[n] = extractPayload(payloadStart, typeCode, &overflowInfo, pages);
 							assert(0,"Can't get multiple payloads form overflow-pages... yet");
 						}
 					}
-					lastCol = colNum;
+
+					static if (T.length > 1) {
+						lastCol = colNum;
+					}
 				}
 				static if (T.length > 1) {
 					return result;
@@ -430,16 +434,18 @@ struct Database {
 		private
 		Row getRow(const uint cellPointer, const PageRange pages) pure const {
 			uint offset = cellPointer;
-			
+			import std.algorithm : min;
 			auto payloadSize = VarInt(page[offset .. offset + 9]);
 			offset += payloadSize.length;
 			
 			auto rowId = VarInt(page[offset .. offset + 9]);
 			offset += rowId.length;
 
-			auto payloadHeaderSize = VarInt(page[offset .. offset + 9]);
+		//	debug { import std.stdio; if (!__ctfe) writeln("offset:",offset); if (offset +9 > page.length) assert(0, "Habada"); }
 
-			if (payloadHeaderSize > page.length) {
+			auto payloadHeaderSize = VarInt(page[offset .. min(offset + 9, page.length)]);
+
+			if (payloadHeaderSize > page.length - offset) {
 				assert(0, "Overflowing payloadHeaders are currently not handeled");
 			}
 			auto ph = PayloadHeader(page[offset + payloadHeaderSize.length .. offset + payloadHeaderSize]);
@@ -747,10 +753,7 @@ struct OverflowInfo {
 
 		auto m = ((usablePageSize - 12) * 32 / 255) - 23;
 		auto x1 = cast(uint) m + ((payloadSize - m) % (usablePageSize - 4));
-		debug {
-			import std.stdio;
-			writeln("x1:",x1);
-		}
+
 		remainingTotalPayload = payloadSize;
 		payloadOnFirstPage = min(usablePageSize - 35, x1) - payloadHeaderSize;
 	}
