@@ -26,39 +26,39 @@ struct_type[] deserialize(alias struct_type)(Row[] ra) {
 /// or table.select("name").where!((type) => type.as!string == "table")("type").as!string;
 /// or join().select()
 /+
-auto where(S,T...)(S selectResult, T )
+ auto where(S,T...)(S selectResult, T )
 
-auto where(S,T...)(S selectResult) {
-	foreach(i,Element;T) {
-		static if (i == 0) {
-			static assert(is(Element == delegeate) || is(Element == function),
-				"first template argument to where has to be a delegate or a function");
-			static assert()
-		}
-	}
-}
+ auto where(S,T...)(S selectResult) {
+ foreach(i,Element;T) {
+ static if (i == 0) {
+ static assert(is(Element == delegeate) || is(Element == function),
+ "first template argument to where has to be a delegate or a function");
+ static assert()
+ }
+ }
+ }
 
-auto SQL(SQLElements...)(Database db) {
-//	static assert (allStatiesfy(isSQLElement!SQLElements))
-	foreach(elem;SQLElements) {
-		static if (isSelect!elem) {
-			//assert that there is just one select
-		} else static if (isWhere!elem) {
-			
-		}
-	}
-}
-+/
+ auto SQL(SQLElements...)(Database db) {
+ //	static assert (allStatiesfy(isSQLElement!SQLElements))
+ foreach(elem;SQLElements) {
+ static if (isSelect!elem) {
+ //assert that there is just one select
+ } else static if (isWhere!elem) {
+ 
+ }
+ }
+ }
+ +/
 /// handlePage is used to itterate over interiorPages transparently
 void* handlePageF(Database.BTreePage page,
-		Database.PageRange pages,
-		void* function(Database.BTreePage, Database.PageRange, void*) pageHandlerF,
-		void* initialState = null) { 
-		handlePage!(
-			(page, pages) => initialState = pageHandlerF(page, pages, initialState)
+	Database.PageRange pages,
+	void* function(Database.BTreePage, Database.PageRange, void*) pageHandlerF,
+	void* initialState = null) { 
+	handlePage!(
+		(page, pages) => initialState = pageHandlerF(page, pages, initialState)
 		)(page, pages);
 
-		return initialState;
+	return initialState;
 }
 
 template pageHandlerTypeP(alias pageHandler) {
@@ -69,7 +69,16 @@ template pageHandlerTypePP(alias pageHandler) {
 	alias pageHandlerTypePP = typeof(pageHandler(cast(const)Database.BTreePage.init, cast(const)Database.PageRange.init));
 }
 
-template handlerRetrunType(alias pageHandler) {
+template rowHandlerTypeR(alias rowHandler) {
+	alias rowHandlerTypeR = typeof(rowHandler(cast(const)Database.Row));
+}
+
+template rowHandlerTypeRP(alias rowHandler) {
+	alias rowHandlerTypeRP = typeof(rowHandler(cast(const)Database.Row, cast(const)Database.PageRange.init));
+}
+
+
+template pageHandlerRetrunType(alias pageHandler) {
 	alias typePP = pageHandlerTypePP!pageHandler;
 	alias typeP = pageHandlerTypeP!pageHandler;
 
@@ -90,8 +99,8 @@ auto handlePage(alias pageHandler, RR = handlerRetrunType!(pageHandler)[])(const
 }
 
 /// handlePage is used to itterate over interiorPages transparently
-RR handlePage(alias pageHandler, RR = handlerRetrunType!(pageHandler)[])(const Database.BTreePage page,
-		const Database.PageRange pages,  RR returnRange = RR.init) {
+RR handleRow(alias rowHandler, RR = handlerRetrunType!(rowHandler)[])(const Database.BTreePage page,
+	const Database.PageRange pages,  RR returnRange = RR.init) {
 	alias hrt = handlerRetrunType!(pageHandler);
 	alias defaultReturnRangeType = hrt[];
 
@@ -100,41 +109,33 @@ RR handlePage(alias pageHandler, RR = handlerRetrunType!(pageHandler)[])(const D
 	if (returnRange is RR.init && RR.init == null && !nullReturnHandler) {
 
 	}
+	auto cpa = page.getCellPointerArray();
 
 	switch (page.pageType) with (Database.BTreePage.BTreePageType) {
 
-	case tableLeafPage: {
-			static if (is(typeof(pageHandler(page, pages)))) {
-				static if (nullReturnHandler) {
-					pageHandler(page, pages);
-					break;
-				} else {
-					static if (is (RR == defaultReturnRangeType)) {
-						return [pageHandler(page, pages)];
+		
+		case tableLeafPage: {
+			foreach(cp;cpa) {
+				static if (is(handlerRetrunType)) {
+					static if (nullReturnHandler) {
+						rowHandler(page.getRow(cp, pages));
+						break;
 					} else {
-						return pageHandler(page, pages);
-					}
+						static if (is (RR == defaultReturnRangeType)) {
+							return [rowHandler(page.getRow(cp, pages))];
+						} else {
+							return rowHandler(page.getRow(cp, pages));
+						}
 
-				}
-			} else static if (is(typeof(pageHandler(page)))) {
-				static if (nullReturnHandler) {
-					pageHandler(page);
-					break;
-				} else {
-					static if (is (RR == defaultReturnRangeType)) {
-						return [pageHandler(page, pages)];
-					} else {
-						return pageHandler(page, pages);
 					}
+				} else {
+					import std.conv;
+					static assert(0, "pageHandler has to be callable with (BTreePage) or (BTreePage, pagesRange)" ~ typeof(rowHandler).stringof);
 				}
-			} else {
-				import std.conv;
-				static assert(0, "pageHandler has to be callable with (BTreePage) or (BTreePage, pagesRange)" ~ typeof(pageHandler).stringof);
 			}
 		}
-		case tableInteriorPage: {
-			auto cpa = page.getCellPointerArray();
 
+		case tableInteriorPage: {
 
 			foreach(cp;cpa) {
 				static if (nullReturnHandler) {
@@ -153,10 +154,10 @@ RR handlePage(alias pageHandler, RR = handlerRetrunType!(pageHandler)[])(const D
 			break;
 		}
 
-	default:
-		import std.conv;
+		default:
+			import std.conv;
 
-		assert(0, "pageType not supported" ~ to!string(page.pageType));
+			assert(0, "pageType not supported" ~ to!string(page.pageType));
 	}
 
 	return returnRange;

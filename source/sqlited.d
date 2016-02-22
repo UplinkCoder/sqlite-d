@@ -408,52 +408,52 @@ struct Database {
 		}
 
 
-		Row[] getRows(const PageRange pages) const {
-			version(Multithreaded) {
-				import std.parallelism;
-				import atomicarray;
-				AtomicArray!Row rows;
-			} else {
+//		Row[] getRows(const PageRange pages) const {
+//			version(Multithreaded) {
+//				import std.parallelism;
+//				import atomicarray;
+//				AtomicArray!Row rows;
+//			} else {
+//
+//				Row[] rows;
+//			}
+//			import std.parallelism;
+//
+//			assert(pageType == BTreePageType.tableLeafPage, "only tableLeafPages are supported for now");
+//
+//
+//				version(Multithreaded) {
+//				Row[] ctfeRows;
+//					if (__ctfe) {
+//						auto cellPointers = getCellPointerArray();
+//						foreach (cp; cellPointers) {
+//							ctfeRows ~= getRow(cp, pages); 
+//						}
+//					} else {
+//					auto cellPointers = getCellPointerArray();
+//					foreach (cp; parallel(cellPointers)) {
+//							rows ~= atomicValue(getRow(cp, pages), cast(uint)cp);
+//						}
+//					}
+//				} else {
+//					auto cellPointers = getCellPointerArray();
+//					foreach (cp; cellPointers) {
+//						rows ~= getRow(cp, pages);
+//					}
+//				}
+//
+//			version(Multithreaded) {
+//				if (__ctfe) {
+//					return ctfeRows;
+//				} else {
+//					return cast(Row[]) rows._data;
+//				}
+//			} else {
+//				return rows;
+//			}
+//		}
 
-				Row[] rows;
-			}
-			import std.parallelism;
-
-			assert(pageType == BTreePageType.tableLeafPage, "only tableLeafPages are supported for now");
-
-
-				version(Multithreaded) {
-				Row[] ctfeRows;
-					if (__ctfe) {
-						auto cellPointers = getCellPointerArray();
-						foreach (cp; cellPointers) {
-							ctfeRows ~= getRow(cp, pages); 
-						}
-					} else {
-					auto cellPointers = getCellPointerArray();
-					foreach (cp; parallel(cellPointers)) {
-							rows ~= atomicValue(getRow(cp, pages), cast(uint)cp);
-						}
-					}
-				} else {
-					auto cellPointers = getCellPointerArray();
-					foreach (cp; cellPointers) {
-						rows ~= getRow(cp, pages);
-					}
-				}
-
-			version(Multithreaded) {
-				if (__ctfe) {
-					return ctfeRows;
-				} else {
-					return cast(Row[]) rows._data;
-				}
-			} else {
-				return rows;
-			}
-		}
-		private
-		Row getRow(const uint cellPointer, const PageRange pages) pure const {
+		Row getRow(const ushort cellPointer, const PageRange pages) pure const {
 			uint offset = cellPointer;
 			import std.algorithm : min;
 			auto payloadSize = VarInt(page[offset .. offset + 9]);

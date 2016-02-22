@@ -41,14 +41,11 @@ auto pn_() {
 	}
 	
 	auto tablesInDB = handlePage!(
-		(page,pages) => 
-		page.getRows(pages)
-		.map!(r => r.colums(1))
-		.map!(p => p.getAs!string).array
+		(r) => r.colums(1).getAs!string
 	) (db, 0);
 
 	auto tableTypes = handlePage!(
-		(page,pages) => (page.getRows(pages)).map!(r => r.colums(0).getAs!string == "table").array
+		((r) => r.colums(0).getAs!string == "table")
 	)(rp, pages);
 
 	return tablesInDB;
@@ -65,8 +62,8 @@ auto getTableNames(const Database db) {
 
 auto getRowsOf(const Database db, const string tableName) {
 	return handlePage!(
-		(page,pages) => (page.getRows(pages))
-		.filter!(r => r.colums(0).getAs!string == "table")
+		(r) =>  
+		r.filter!(r => r.colums(0).getAs!string == "table")
 		.filter!(r => r.colums(1).getAs!string == tableName)
 		.map!(r => r.colums(3).getAs!uint - 1)
 		.filter!(n => n != 0)
