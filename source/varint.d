@@ -15,6 +15,16 @@ static align(1) struct VarInt {
 	pure nothrow @nogc :
 align(1):
 
+	this (const ubyte[] _arr) {
+		auto len = _length(_arr.ptr);
+		byteArray = _arr[0 .. len];
+	}
+	
+	this(const ubyte* ptr) {
+		auto len = _length(ptr);
+		byteArray = ptr[0 .. len];
+	}
+
 	alias toBeLong this;
 	alias toBeLong = toBeLongImpl;
 
@@ -43,13 +53,13 @@ align(1):
 	}
 
 	@property uint length ()  {
-		return _length(byteArray);
+		return cast(uint) byteArray.length;
 	}
 
-	static uint _length(const ubyte[] arr) {
+	static uint _length(const ubyte* ptr) {
 
 		foreach(idx;0..9) {
-			if(arr[idx] & (1 << 7)) {
+			if((*(ptr + idx)) & (1 << 7)) {
 				continue;
 			} else {
 				return idx+1;
@@ -59,13 +69,13 @@ align(1):
 		return 9;
 	}
 
-	static assert(_length((cast(ubyte[])[0x6d,0x00])) == 1);
-	static assert(_length((cast(ubyte[])[0x7f,0x00])) == 1);
-	static assert(_length((cast(ubyte[])[0x82,0x12])) == 2);
-	static assert(VarInt((cast(ubyte[])[0x81,0x00])).toBeLong == 0x0080);
-	static assert(VarInt((cast(ubyte[])[0x82,0x00])).toBeLong == 0x0100); // should be 0x0100
-	static assert(_length((cast(ubyte[])[0x82,0x80,0x00])) == 3);
-	static assert(VarInt((cast(ubyte[])[0x84,0x60,0x00])).toBeLong == 608);
+	static assert(_length((cast(const ubyte[])[0x6d,0x00]).ptr) == 1);
+	static assert(_length((cast(const ubyte[])[0x7f,0x00]).ptr) == 1);
+	static assert(_length((cast(const ubyte[])[0x82,0x12]).ptr) == 2);
+	static assert(VarInt((cast(const ubyte[])[0x81,0x00]).ptr).toBeLong == 0x0080);
+	static assert(VarInt((cast(const ubyte[])[0x82,0x00]).ptr).toBeLong == 0x0100); // should be 0x0100
+	static assert(_length((cast(const ubyte[])[0x82,0x80,0x00]).ptr) == 3);
+	static assert(VarInt((cast(const ubyte[])[0x84,0x60,0x00]).ptr).toBeLong == 608);
 	//static assert (VarInt().lengthInVarInt(608) == 2);
-	static assert(VarInt((cast(ubyte[])[0x81,0x82,0x83,0x84,0x85,0x86,0x87,0x88,0x89])).toBeLong != 0);
+	static assert(VarInt((cast(const ubyte[])[0x81,0x82,0x83,0x84,0x85,0x86,0x87,0x88,0x89]).ptr).toBeLong != 0);
 }
