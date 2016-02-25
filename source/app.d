@@ -25,12 +25,12 @@ static immutable ubyte[] test_s3db = cast(immutable ubyte[]) import("test4.s3db"
 static immutable db = cast(immutable)Database(test_s3db, "");
 static immutable pages =  cast(immutable)db.pages();
 static immutable rp = cast(immutable)pages[0];
-
+/+
 uint ct () { 
 	uint cnt;
 	handlePage!((page, pages) => cnt += page.header.cellsInPage) (rp, db.pages);
 	return cnt;
-}
+}+/
 auto pn_() {
 
 	Database.Row[] rows;
@@ -40,17 +40,17 @@ auto pn_() {
 		uint pagenr;
 	}
 	
-	auto tablesInDB = handlePage!(
+	/+auto tablesInDB = handleRow!(
 		(r) => r.colums(1).getAs!string
 	) (db, 0);
 
-	auto tableTypes = handlePage!(
+	auto tableTypes = handleRow!(
 		((r) => r.colums(0).getAs!string == "table")
 	)(rp, pages);
-
-	return tablesInDB;
+	+/
+	return handleRow!(r => r.colums(1))(rp, pages);
 }
-
+/+
 auto getTableNames(const Database db) {
 	import std.array : array;
 	return handlePage!(
@@ -59,7 +59,20 @@ auto getTableNames(const Database db) {
 		.map!(r => r.colums(1).getAs!string)
 	)(db, 0);
 }
++/
+auto getTableNames(const Database db) {
+	import std.array : array;
+	return handleRow!((r) {
+			if (r.colums(0).getAs!string == "table") {
+				return r.colums(1).getAs!string;
+			} else {
+				return "";
+			}
+		}
+	)(db.rootPage, db.pages);
+}
 
+/+
 auto getRowsOf(const Database db, const string tableName) {
 	return handlePage!(
 		(r) =>  
@@ -69,27 +82,43 @@ auto getRowsOf(const Database db, const string tableName) {
 		.filter!(n => n != 0)
 		.map!(n => handlePage!((pg, pages) => pg.getRows(pages))(db, n))
 		.join
-	)(rp, pages);
+		)(rp, pages);
 }
++/
+auto getRowsOf(const Database db, const string tableName) {
+	return handleRow!(
+		(r) {
+			if (r.colums(0).getAs!string == "table" && 
+				r.colums(1).getAs!string == tableName) {
+				auto n = r.colums(3).getAs!uint - 1;
+				return handleRow!((_r) {
+					return _r;
+				}) (db.pages[n], db.pages);
+			} else {
+				return null;
+			}
 
-auto getRootPageOf1(const Database db, const string tableName) {
-	return handlePage!(
-		(page,pages) => (page.getRows(pages))
-		.filter!(r => r.colums(0).getAs!string == "table")
-		.filter!(r => r.colums(1).getAs!string == tableName)
-		.map!(r => r.colums(3).getAs!uint - 1)
-		)(rp, pages).join;
+		})(db.rootPage, db.pages);
 }
-
-auto getRootPageOf2(const Database db, const string tableName) {
-	return handlePage!(
-		(page,pages) => (page.getRows(pages))
-		.map!(r => r.colums(0, 1, 3))
-		.filter!(cols => cols[0].getAs!string == "table")
-		.filter!(cols => cols[1].getAs!string == tableName)
-		.map!(cols => cols[2].getAs!uint-1)
-		)(rp, pages).join;
-}
+//
+//auto getRootPageOf1(const Database db, const string tableName) {
+//	return handlePage!(
+//		(page,pages) => (page.getRows(pages))
+//		.filter!(r => r.colums(0).getAs!string == "table")
+//		.filter!(r => r.colums(1).getAs!string == tableName)
+//		.map!(r => r.colums(3).getAs!uint - 1)
+//		)(rp, pages).join;
+//}
+//
+//auto getRootPageOf2(const Database db, const string tableName) {
+//	return handlePage!(
+//		(page,pages) => (page.getRows(pages))
+//		.map!(r => r.colums(0, 1, 3))
+//		.filter!(cols => cols[0].getAs!string == "table")
+//		.filter!(cols => cols[1].getAs!string == tableName)
+//		.map!(cols => cols[2].getAs!uint-1)
+//		)(rp, pages).join;
+//}
 
 pragma(msg, pn_);
 
@@ -118,12 +147,11 @@ int main(string[] args) {
 		StopWatch sw;
 
 		foreach(_; 0 .. 2*4096) {
-			string[] results;
+			string result;
 		
 			sw.start;
-			foreach(rows;db.getRowsOf("Album").join) {
-				import std.array : array;
-				results = rows.map!(row => row.colums(1).getAs!string).array;
+			foreach(row;db.getRowsOf("Album").join) {
+				result = row.colums(1).getAs!string;
 			}
 			sw.stop();
 		//	sw.reset();
@@ -145,12 +173,12 @@ int main(string[] args) {
 			//	uint cnt;
 			//	Database.Row[][] rows; 
 			//	handlePage!((a, b) =>  writeln(a.getRows(b)))(_page, db.pages);
-			getRootPageOf1(db, "Artist");
+		//	getRootPageOf1(db, "Artist");
 			
 		}
 
 		void fn() {
-			getRootPageOf1(db, "Artist");
+//			getRootPageOf1(db, "Artist");
 //			uint cnt;
 //			handlePageF(cast(Database.BTreePage)_page, db.pages, &countCellsHandler, &cnt);
 //			return cnt;

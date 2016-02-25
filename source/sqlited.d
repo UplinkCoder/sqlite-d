@@ -348,11 +348,12 @@ struct Database {
 			const PageRange pages;
 			const uint payloadSize;
 			const uint payloadHeaderSize;
-			PayloadHeader payloadHeader;
+			const ubyte[] payloadHeaderBytes;
 			const ubyte[] payloadStart;
 
 			import std.traits : allSatisfy;
-			auto colums (T...)(T colNums) if (allSatisfy!(a => (is(a : int), T))) {
+			auto colums (T...)(T colNums) const if (allSatisfy!(a => (is(a : const int), T))) {
+				auto payloadHeader = PayloadHeader(payloadHeaderBytes);
 				uint offset;
 				uint lastCol;
 				static assert (T.length != 0, "extractPayload needs at least one argument");
@@ -469,7 +470,7 @@ struct Database {
 			if (payloadHeaderSize > page.length - offset) {
 				assert(0, "Overflowing payloadHeaders are currently not handeled");
 			}
-			auto ph = PayloadHeader(page[offset + payloadHeaderSize.length .. offset + payloadHeaderSize]);
+			auto ph = page[offset + payloadHeaderSize.length .. offset + payloadHeaderSize];
 			offset += payloadHeaderSize;
 
 			return Row(pages, cast(uint) payloadSize, cast(uint) payloadHeaderSize , ph, page[offset .. $]);
