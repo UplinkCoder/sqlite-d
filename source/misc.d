@@ -132,7 +132,6 @@ void handleRow(alias rowHandler, RR)(const Database.BTreePage page,
 	switch (page.pageType) with (Database.BTreePage.BTreePageType) {
 		
 		case tableLeafPage: {
-			if (!__ctfe) returnRange.reserve(cpa.length);
 
 			foreach(cp;cpa) {
 				static if (is(hrt)) {
