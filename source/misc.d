@@ -105,33 +105,34 @@ template pageHandlerRetrunType(alias pageHandler) {
 	}
 }
 static assert (is(pageHandlerRetrunType!((page, pages) => page)));
-/// this is often faster. because the PageRange is cached
 
-auto handleRow(alias rowHandler, RR = rowHandlerReturnType!(rowHandler)[])(const Database.BTreePage page,
+RR handleRow(alias rowHandler, RR = rowHandlerReturnType!(rowHandler)[])(const Database.BTreePage page,
 	const Database.PageRange pages) {
 	RR returnArray;
-	return handleRow!rowHandler(page, pages, returnArray);
+	enum isPure = is(typeof((){void _() pure {rowHandler(cast(const)Database.Row.init);}}));
+	pragma(msg, isPure);
+//	static assert(isPure);
+	handleRow!rowHandler(page, pages, returnArray);
+	return returnArray;
 }
 
 
 /// handlePage is used to itterate over interiorPages transparently
-RR handleRow(alias rowHandler, RR)(const Database.BTreePage page,
+void handleRow(alias rowHandler, RR)(const Database.BTreePage page,
 	const Database.PageRange pages,  ref RR returnRange) {
 	alias hrt = rowHandlerReturnType!(rowHandler);
 	alias defaultReturnRangeType = hrt[];
 
 	enum nullReturnHandler = is(hrt == void) || is(hrt == typeof(null));
-	pragma(msg, nullReturnHandler);
 	if (returnRange is RR.init && RR.init == null && !nullReturnHandler) {
 
 	}
 	auto cpa = page.getCellPointerArray();
 
 	switch (page.pageType) with (Database.BTreePage.BTreePageType) {
-
 		
 		case tableLeafPage: {
-		//	if (!__ctfe) returnRange.reserve(cpa.length);
+			if (!__ctfe) returnRange.reserve(cpa.length);
 
 			foreach(cp;cpa) {
 				static if (is(hrt)) {
@@ -140,7 +141,7 @@ RR handleRow(alias rowHandler, RR)(const Database.BTreePage page,
 						break;
 					} else {
 						static if (is (RR == defaultReturnRangeType)) {
-							returnRange ~= [rowHandler(page.getRow(cp, pages))];
+							returnRange ~= rowHandler(page.getRow(cp, pages));
 						} else {
 							returnRange.put(rowHandler(page.getRow(cp, pages)));
 							break;
@@ -181,6 +182,6 @@ RR handleRow(alias rowHandler, RR)(const Database.BTreePage page,
 			assert(0, "pageType not supported" ~ to!string(page.pageType));
 	}
 
-	return returnRange;
+	return ;
 
 }

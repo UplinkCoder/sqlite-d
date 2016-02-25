@@ -352,7 +352,7 @@ struct Database {
 			const ubyte[] payloadStart;
 
 			import std.traits : allSatisfy;
-			auto colums (T...)(T colNums) const if (allSatisfy!(a => (is(a : const int), T))) {
+			auto colums (T...)(T colNums) pure const if (allSatisfy!(a => (is(a : const int), T))) {
 				auto payloadHeader = PayloadHeader(payloadHeaderBytes);
 				uint offset;
 				uint lastCol;
@@ -740,19 +740,19 @@ struct Database {
 			uint offset;
 			uint _length;
 			 
-			void popFront() {
+			void popFront() pure {
 				assert(offset < payloadHeader.length);
 				offset += _length;
 				_length = 0;
 			}
 
-			Payload.SerialTypeCode front() {
+			Payload.SerialTypeCode front() pure {
 				auto v = VarInt(payloadHeader[offset .. $]);
 				_length = cast(uint)v.length;
 				return Payload.SerialTypeCode(v);
 			}
 
-			bool empty() {
+			bool empty() pure const {
 				return offset == payloadHeader.length;
 			}
 		}
@@ -768,7 +768,7 @@ struct OverflowInfo {
 	uint payloadOnFirstPage;
 	uint pageOffset;
 
-	this(uint payloadSize,  uint usablePageSize, uint payloadHeaderSize) {
+	this(uint payloadSize,  uint usablePageSize, uint payloadHeaderSize)  pure {
 		import std.algorithm : min;
 
 		auto m = ((usablePageSize - 12) * 32 / 255) - 23;
@@ -1023,7 +1023,7 @@ auto apply(alias handler)(const Database.Payload p) {
 
 	}
 }
-
+pure :
 auto getAs(T)(Database.Payload p) {
 	return p.apply!(v => cast(T) v);
 }
