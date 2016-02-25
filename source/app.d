@@ -85,7 +85,7 @@ auto getRowsOf(const Database db, const string tableName) {
 		)(rp, pages);
 }
 +/
-auto getRowsOf(const Database db, const string tableName) {
+auto getRowsOf0(const Database db, const string tableName) {
 	return handleRow!(
 		(r) {
 			if (r.colums(0).getAs!string == "table" && 
@@ -100,6 +100,13 @@ auto getRowsOf(const Database db, const string tableName) {
 
 		})(db.rootPage, db.pages);
 }
+
+auto getRowsOf1(const Database db, const string tableName) {
+	auto n = getRootPageOf1(db, tableName);
+	return (n ? handleRow!(r => r)(db.pages[n], db.pages) : null);
+}
+
+
 //
 //auto getRootPageOf1(const Database db, const string tableName) {
 //	return handlePage!(
@@ -109,6 +116,22 @@ auto getRowsOf(const Database db, const string tableName) {
 //		.map!(r => r.colums(3).getAs!uint - 1)
 //		)(rp, pages).join;
 //}
+auto getRootPageOf1(const Database db, const string tableName) {
+	uint rootPage;	
+	handleRow!(
+		(r) {
+			if (r.colums(0).getAs!string == "table" && 
+				r.colums(1).getAs!string == tableName) {
+				rootPage = r.colums(3).getAs!uint - 1;
+			}
+	})(rp, pages);
+
+
+	return rootPage;
+}
+
+pragma(msg, getRootPageOf1(db, "Artist"));
+
 //
 //auto getRootPageOf2(const Database db, const string tableName) {
 //	return handlePage!(
@@ -150,7 +173,7 @@ int main(string[] args) {
 			string result;
 		
 			sw.start;
-			foreach(row;db.getRowsOf("Album").join) {
+			foreach(row;db.getRowsOf1("Album")) {
 				result = row.colums(1).getAs!string;
 			}
 			sw.stop();
