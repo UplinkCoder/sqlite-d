@@ -130,6 +130,7 @@ RR handleRow(alias rowHandler, RR = rowHandlerReturnType!(rowHandler)[])(const D
 
 		
 		case tableLeafPage: {
+			hrt[] _result;
 			foreach(cp;cpa) {
 				static if (is(hrt)) {
 					static if (nullReturnHandler) {
@@ -137,7 +138,7 @@ RR handleRow(alias rowHandler, RR = rowHandlerReturnType!(rowHandler)[])(const D
 						break;
 					} else {
 						static if (is (RR == defaultReturnRangeType)) {
-							return [rowHandler(page.getRow(cp, pages))];
+							returnRange ~= [rowHandler(page.getRow(cp, pages))];
 						} else {
 							returnRange.put(rowHandler(page.getRow(cp, pages)));
 							break;
@@ -149,8 +150,9 @@ RR handleRow(alias rowHandler, RR = rowHandlerReturnType!(rowHandler)[])(const D
 					static assert(0, "pageHandler has to be callable with (BTreePage) or (BTreePage, pagesRange)" ~ typeof(rowHandler).stringof);
 				}
 			}
+			return _result;
 		}
-		break;
+		
 
 		case tableInteriorPage: {
 

@@ -48,7 +48,7 @@ auto pn_() {
 		((r) => r.colums(0).getAs!string == "table")
 	)(rp, pages);
 	+/
-	return handleRow!(r => r.colums(1))(rp, pages);
+	return handleRow!(r => r.colums(0).getAs!string)(rp, pages);
 }
 /+
 auto getTableNames(const Database db) {
