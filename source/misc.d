@@ -160,14 +160,14 @@ void handleRow(alias rowHandler, RR)(const Database.BTreePage page,
 
 			foreach(cp;cpa) {
 				static if (nullReturnHandler) {
-					handleRow!pageHandler(pages[BigEndian!uint(page.page[cp .. cp + uint.sizeof]) - 1], pages);
+					handleRow!rowHandler(pages[BigEndian!uint(page.page[cp .. cp + uint.sizeof]) - 1], pages);
 				} else {
 					handleRow!rowHandler(pages[BigEndian!uint(page.page[cp .. cp + uint.sizeof]) - 1], pages, returnRange);
 				}
 			}
 
 			static if (nullReturnHandler) {
-				handleRow!pageHandler(pages[page.header._rightmostPointer - 1], pages);
+				handleRow!rowHandler(pages[page.header._rightmostPointer - 1], pages);
 			} else {
 				handleRow!rowHandler(pages[page.header._rightmostPointer - 1], pages, returnRange);
 			}
