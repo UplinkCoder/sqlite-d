@@ -106,16 +106,17 @@ template pageHandlerRetrunType(alias pageHandler) {
 }
 static assert (is(pageHandlerRetrunType!((page, pages) => page)));
 /// this is often faster. because the PageRange is cached
-/+
-auto handlePage(alias pageHandler, RR = handlerRetrunType!(pageHandler)[])(const Database db, const uint pageNumber, RR returnRange = RR.init) {
-	auto pageRange = db.pages();
-	return handleRow!pageHandler(pageRange[pageNumber], pageRange, returnRange);
+
+auto handleRow(alias rowHandler, RR = rowHandlerReturnType!(rowHandler)[])(const Database.BTreePage page,
+	const Database.PageRange pages) {
+	RR returnArray;
+	return handleRow!rowHandler(page, pages, returnArray);
 }
-+/
+
 
 /// handlePage is used to itterate over interiorPages transparently
-RR handleRow(alias rowHandler, RR = rowHandlerReturnType!(rowHandler)[])(const Database.BTreePage page,
-	const Database.PageRange pages,  RR returnRange = RR.init) {
+RR handleRow(alias rowHandler, RR)(const Database.BTreePage page,
+	const Database.PageRange pages,  ref RR returnRange) {
 	alias hrt = rowHandlerReturnType!(rowHandler);
 	alias defaultReturnRangeType = hrt[];
 
@@ -130,7 +131,8 @@ RR handleRow(alias rowHandler, RR = rowHandlerReturnType!(rowHandler)[])(const D
 
 		
 		case tableLeafPage: {
-			hrt[] _result;
+		//	if (!__ctfe) returnRange.reserve(cpa.length);
+
 			foreach(cp;cpa) {
 				static if (is(hrt)) {
 					static if (nullReturnHandler) {
@@ -150,8 +152,8 @@ RR handleRow(alias rowHandler, RR = rowHandlerReturnType!(rowHandler)[])(const D
 					static assert(0, "pageHandler has to be callable with (BTreePage) or (BTreePage, pagesRange)" ~ typeof(rowHandler).stringof);
 				}
 			}
-			return _result;
 		}
+			break;
 		
 
 		case tableInteriorPage: {
@@ -160,14 +162,14 @@ RR handleRow(alias rowHandler, RR = rowHandlerReturnType!(rowHandler)[])(const D
 				static if (nullReturnHandler) {
 					handleRow!pageHandler(pages[BigEndian!uint(page.page[cp .. cp + uint.sizeof]) - 1], pages);
 				} else {
-					returnRange ~= handleRow!rowHandler(pages[BigEndian!uint(page.page[cp .. cp + uint.sizeof]) - 1], pages, returnRange);
+					handleRow!rowHandler(pages[BigEndian!uint(page.page[cp .. cp + uint.sizeof]) - 1], pages, returnRange);
 				}
 			}
 
 			static if (nullReturnHandler) {
 				handleRow!pageHandler(pages[page.header._rightmostPointer - 1], pages);
 			} else {
-				returnRange ~= handleRow!rowHandler(pages[page.header._rightmostPointer - 1], pages, returnRange);
+				handleRow!rowHandler(pages[page.header._rightmostPointer - 1], pages, returnRange);
 			}
 
 			break;
