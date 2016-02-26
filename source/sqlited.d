@@ -387,10 +387,8 @@ struct Database {
 						static if (T.length == 1) {
 						
 							return extractPayload(&overflowInfo, typeCode, pages);
-						//	assert(0,"Sorry no overflow ... yet");
 						} else {
 							result[n] = extractPayload(&overflowInfo, typeCode, pages);
-							//	assert(0,"Can't get multiple payloads form overflow-pages... yet");
 						}
 					}
 
