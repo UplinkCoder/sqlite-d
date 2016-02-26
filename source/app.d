@@ -23,9 +23,17 @@ void* countCellsHandler(Database.BTreePage page, Database.PageRange pages, void*
 }
 
 static immutable ubyte[] test_s3db = cast(immutable ubyte[]) import("test.s3db");
+
+static immutable ubyte[] test4_s3db = cast(immutable ubyte[]) import("test4.s3db");
+/+
+static immutable db4 = cast(immutable)Database(test4_s3db, "");
+static immutable pages4 =  cast(immutable)db4.pages();
+static immutable rp4 = cast(immutable)pages4[0];
++/
 static immutable db = cast(immutable)Database(test_s3db, "");
 static immutable pages =  cast(immutable)db.pages();
 static immutable rp = cast(immutable)pages[0];
+
 
 /+
 uint ct () { 
@@ -158,7 +166,8 @@ int main(string[] args) {
 //	writefln("opening file %s", filename); 
 //	auto db = new Database(filename);
 
-	Database.MasterTableSchema[] schemas = handleRow!(r => r.deserialize!(Database.MasterTableSchema))(db.rootPage, db.pages);
+	Database.MasterTableSchema[] schemas;
+	schemas = handleRow!(r => r.deserialize!(Database.MasterTableSchema))(db.rootPage, db.pages);
 	writeln(schemas);
 
 
@@ -166,7 +175,7 @@ int main(string[] args) {
 	//	writeln("it appears to be a database");
 	//	writeln(db.pages[page].header);
 		writeln("pageSize : ",db.header.pageSize);
-
+		auto db4 = Database(test4_s3db, "test4.s3db");
 //		writeln(db.pages[page].getRows(db.pages));
 //		handlePageF(db.pages[page], db.pages, &pageHandler);
 		import std.datetime;
@@ -178,7 +187,7 @@ int main(string[] args) {
 		
 			sw.start;
 			auto x = result.length;
-			foreach(row;(db).getRowsOf1("Album")) {
+			foreach(row;(db4).getRowsOf1("Album")) {
 				result = row.colums(1).getAs!string;
 			//	writeln(result);
 			}

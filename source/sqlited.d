@@ -791,10 +791,7 @@ struct OverflowInfo {
 		} else {
 			pageSlice = payloadStart;
 		}
-		debug {
-			import std.stdio;
-			writeln("ps.len: ", pageSlice.length, " offset: ",offset);
-		}
+
 		pageSlice = pageSlice[offset .. $];
 	}
 
@@ -851,15 +848,7 @@ static Database.Payload extractPayload(
 			
 			auto readBytes = cast(uint) min(overflowInfo.pageSlice.length,
 				remainingBytesOfPayload);
-			
-			debug {
-				import std.stdio;
-				
-				writeln("readBytes : ", readBytes);
-				writeln("remainingBytesOfPayload: ",
-					remainingBytesOfPayload);
-				writeln("pageSlice_length", overflowInfo.pageSlice.length);
-			}
+
 			remainingBytesOfPayload -= readBytes;
 
 			_payloadBuffer ~= overflowInfo.pageSlice[0 .. readBytes];
