@@ -69,10 +69,6 @@ struct Database {
 
 	}
 
-	import std.range;
-
-	static assert(hasLength!PageRange);
-
 	static struct Payload {
 		alias SerialTypeCodeEnum = SerialTypeCode.SerialTypeCodeEnum;
 		static struct SerialTypeCode {
@@ -347,6 +343,7 @@ struct Database {
 		static struct Row {
 			const PageRange pages;
 			const uint payloadSize;
+			const uint rowId;
 			const uint payloadHeaderSize;
 			const ubyte[] payloadHeaderBytes;
 			const ubyte[] payloadStart;
@@ -386,13 +383,14 @@ struct Database {
 						}
 					
 					} else {
+						auto overflowInfo = OverflowInfo(payloadStart, offset, payloadSize, pages, payloadHeaderSize);
 						static if (T.length == 1) {
-							auto overflowInfo = OverflowInfo(payloadStart, offset, payloadSize, pages, payloadHeaderSize);
+						
 							return extractPayload(&overflowInfo, typeCode, pages);
 						//	assert(0,"Sorry no overflow ... yet");
 						} else {
-						//	result[n] = extractPayload(payloadStart, typeCode, &overflowInfo, pages);
-							assert(0,"Can't get multiple payloads form overflow-pages... yet");
+							result[n] = extractPayload(&overflowInfo, typeCode, pages);
+							//	assert(0,"Can't get multiple payloads form overflow-pages... yet");
 						}
 					}
 
@@ -473,7 +471,7 @@ struct Database {
 			auto ph = page[offset + payloadHeaderSize.length .. offset + payloadHeaderSize];
 			offset += payloadHeaderSize;
 
-			return Row(pages, cast(uint) payloadSize, cast(uint) payloadHeaderSize , ph, page[offset .. $]);
+			return Row(pages, cast(uint) payloadSize, cast(uint) rowId, cast(uint) payloadHeaderSize , ph, page[offset .. $]);
 		}
 
 		//		string toString(PageRange pages) {
@@ -666,26 +664,26 @@ struct Database {
 				return 12 - (isInteriorPage ? 0 : 4);
 			}
 
-			string toString() {
-				import std.conv;
-
-				string result = "pageType:\t";
-				result ~= to!string(pageType) ~ "\n";
-				result ~= "firstFreeBlock:\t";
-				result ~= to!string(firstFreeBlock) ~ "\n";
-				result ~= "cellsInPage:\t";
-				result ~= to!string(cellsInPage) ~ "\n";
-				result ~= "startCellContantArea:\t";
-				result ~= to!string(startCellContantArea) ~ "\n";
-				result ~= "fragmentedFreeBytes:\t";
-				result ~= to!string(fragmentedFreeBytes) ~ "\n";
-				if (isInteriorPage) {
-					result ~= "_rightmostPointer";
-					result ~= to!string(_rightmostPointer) ~ "\n";
-				}
-
-				return result;
-			}
+//			string toString() {
+//				import std.conv;
+//
+//				string result = "pageType:\t";
+//				result ~= to!string(pageType) ~ "\n";
+//				result ~= "firstFreeBlock:\t";
+//				result ~= to!string(firstFreeBlock) ~ "\n";
+//				result ~= "cellsInPage:\t";
+//				result ~= to!string(cellsInPage) ~ "\n";
+//				result ~= "startCellContantArea:\t";
+//				result ~= to!string(startCellContantArea) ~ "\n";
+//				result ~= "fragmentedFreeBytes:\t";
+//				result ~= to!string(fragmentedFreeBytes) ~ "\n";
+//				if (isInteriorPage) {
+//					result ~= "_rightmostPointer";
+//					result ~= to!string(_rightmostPointer) ~ "\n";
+//				}
+//
+//				return result;
+//			}
 		}
 
 		alias BTreePageType = BTreePage.BTreePageHeader.BTreePageType;
@@ -876,19 +874,19 @@ static Database.Payload extractPayload(const ubyte[] startPayload,
 			p.int8 = *cast(byte*) startPayload;
 			break;
 		case typeof(typeCode).int16:
-			p.int16 = *cast(short*) startPayload;
+			p.int16 = *cast(BigEndian!short*) startPayload;
 			break;
 		case typeof(typeCode).int24:
 			p.int24 = (*cast(int*) startPayload) & 0xfff0;
 			break;
 		case typeof(typeCode).int32:
-			p.int32 = *cast(int*) startPayload;
+			p.int32 = *cast(BigEndian!int*) startPayload;
 			break;
 		case typeof(typeCode).int48:
-			p.int48 = (*cast(long*) startPayload) & 0xffffff00;
+			p.int48 = (*cast(BigEndian!long*) startPayload) & 0xffffff00;
 			break;
 		case typeof(typeCode).int64:
-			p.int64 = *cast(long*) startPayload;
+			p.int64 = *cast(BigEndian!long*) startPayload;
 			break;
 		case typeof(typeCode).float64:
 			if (!__ctfe)

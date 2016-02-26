@@ -68,22 +68,22 @@ struct BigEndian(T) {
 				enum _2066_cannot_handle_swapEndian = true;
 				static if (_2066_cannot_handle_swapEndian) {
 					static if (U.sizeof == 8) {
-						return ((val & 0x00000000000000ffUL) << 56UL) | 
-								((val & 0x000000000000ff00UL) << 40UL) | 
-								((val & 0x0000000000ff0000UL) << 24UL) | 
-								((val & 0x00000000ff000000UL) <<  8UL) | 
-								((val & 0x000000ff00000000UL) >>  8UL) | 
-								((val & 0x0000ff0000000000UL) >> 24UL) | 
-								((val & 0x00ff000000000000UL) >> 40UL) | 
-								((val & 0xff00000000000000UL) >> 56UL);
+						return (((cast(ulong)val) & 0x00000000000000ffUL) << 56UL) | 
+								(((cast(ulong)val) & 0x000000000000ff00UL) << 40UL) | 
+								(((cast(ulong)val) & 0x0000000000ff0000UL) << 24UL) | 
+								(((cast(ulong)val) & 0x00000000ff000000UL) <<  8UL) | 
+								(((cast(ulong)val) & 0x000000ff00000000UL) >>  8UL) | 
+								(((cast(ulong)val) & 0x0000ff0000000000UL) >> 24UL) | 
+								(((cast(ulong)val) & 0x00ff000000000000UL) >> 40UL) | 
+								(((cast(ulong)val) & 0xff00000000000000UL) >> 56UL);
 					} else static if (U.sizeof == 4) {
 							return ((val & 0x000000ff) << 24) |
 									((val & 0x0000ff00) <<  8) |
 									((val & 0x00ff0000) >>  8) |
 									((val & 0xff000000) >> 24);
 					} else static if (U.sizeof == 2) {
-							return ((val & 0xff00U) >> 8) |
-									((val & 0x00ffU) << 8);
+							return cast(ushort)(((val & 0xff00) >> 8) |
+									((val & 0x00ff) << 8));
 					} else static if (U.sizeof == 1) {
 								assert(0, "you should not use BigEndian for byte-sized vaules");
 					} else {
@@ -140,7 +140,6 @@ T[] toArray(T)(const ubyte[] _array, const size_t size) {
 			tmp = _array[pos .. pos + T.sizeof];
 			result[i] = tmp;
 		} else {
-			import std.conv;
 			static assert(0, T.stringof ~ " has to have a constructor or opAssign taking " ~ sliceType.stringof);
 		}
 	}

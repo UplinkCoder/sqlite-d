@@ -5,7 +5,6 @@ import misc;
 import std.conv;
 import std.stdio;
 import core.memory;
-import test;
 
 import std.algorithm : map, filter, count;
 import std.range : join, takeOne;
@@ -25,15 +24,10 @@ void* countCellsHandler(Database.BTreePage page, Database.PageRange pages, void*
 
 
 static immutable ubyte[] test4_s3db = cast(immutable ubyte[]) import("test4.s3db");
-/+
+
 static immutable db4 = cast(immutable)Database(test4_s3db, "");
 static immutable pages4 =  cast(immutable)db4.pages();
 static immutable rp4 = cast(immutable)pages4[0];
-+/
-static immutable db = cast(immutable)Database(test_s3db, "");
-static immutable pages =  cast(immutable)db.pages();
-static immutable rp = cast(immutable)pages[0];
-
 
 /+
 uint ct () { 
@@ -142,10 +136,26 @@ auto getRootPageOf1(const Database db, const string tableName) {
 	return rootPage;
 }
 
+auto getRootPageOf2(const Database db, const string tableName) {
+	uint rootPage;	
+	handleRow!(
+		(r) {
+			auto cols = r.colums(1,3);
+			if (cols[0].getAs!string == tableName) {
+				assert(rootPage == 0,"tableName duplicated");
+				rootPage = cols[1].getAs!uint - 1;
+			}
+		})(db.pages[0], db.pages);
+	
+	
+	return rootPage;
+}
+
+
 //pragma(msg, getRootPageOf1(db, "Album"));
 
 //
-//auto getRootPageOf2(const Database db, const string tableName) {
+//auto getRootPageOfOld(const Database db, const string tableName) {
 //	return handlePage!(
 //		(page,pages) => (page.getRows(pages))
 //		.map!(r => r.colums(0, 1, 3))
@@ -167,19 +177,16 @@ int main(string[] args) {
 //	auto db = new Database(filename);
 
 	Database.MasterTableSchema[] schemas;
-	schemas = handleRow!(r => r.deserialize!(Database.MasterTableSchema))(db.rootPage, db.pages);
+	schemas = handleRow!(r => r.deserialize!(Database.MasterTableSchema))(rp4, pages4);
 	writeln(schemas);
 
-
-	if (&db !is null) {
+//	if (db !is null) {
 	//	writeln("it appears to be a database");
 	//	writeln(db.pages[page].header);
-		writeln("pageSize : ",db.header.pageSize);
-		auto db4 = Database(test4_s3db, "test4.s3db");
+	//	writeln("pageSize : ",db.header.pageSize);
 //		writeln(db.pages[page].getRows(db.pages));
 //		handlePageF(db.pages[page], db.pages, &pageHandler);
 		import std.datetime;
-//		const _page = db.pages[pageNr];
 		StopWatch sw;
 
 		foreach(_; 0 .. 2*4096) {
@@ -248,9 +255,9 @@ int main(string[] args) {
 //			writeln(page);
 //		}
 		return 0;
-	} else {
+//	} else {
 //		writeln("invalid database or header corrupted");
-	}
+//	}
 	assert(0);
 //	readln();
 }
