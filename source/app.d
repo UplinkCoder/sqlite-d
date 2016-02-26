@@ -22,7 +22,7 @@ void* countCellsHandler(Database.BTreePage page, Database.PageRange pages, void*
 	return currentCount;
 }
 
-static immutable ubyte[] test_s3db = cast(immutable ubyte[]) import("test.s3db");
+
 
 static immutable ubyte[] test4_s3db = cast(immutable ubyte[]) import("test4.s3db");
 /+
