@@ -800,10 +800,7 @@ struct OverflowInfo {
 		auto nextPage = pages[nextPageIdx - 1];
 		nextPageIdx = BigEndian!uint(nextPage.page[0 .. uint.sizeof]);
 		pageSlice = nextPage.page[uint.sizeof .. $];
-		debug {
-			import std.stdio;
-				writeln("going to page ",nextPageIdx);
-		}
+	
 	}
 
 }
@@ -859,7 +856,9 @@ static Database.Payload extractPayload(
 				return extractPayload(cast(const)_payloadBuffer, typeCode);
 			} else {
 				if (overflowInfo.nextPageIdx == 0 && !remainingBytesOfPayload) {
-
+					//This is a very special-case 
+					//Hopefully we don't hit it :)
+					assert(0, "Moow!");
 				}
 				overflowInfo.gotoNextPage(pages);
 			}
