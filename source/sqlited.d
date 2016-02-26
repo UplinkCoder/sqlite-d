@@ -373,7 +373,7 @@ struct Database {
 					}
 
 					auto typeCode = payloadHeader.front();
-					auto payloadEnd = offset + typeCode.length;
+					uint payloadEnd = cast(uint) (offset + typeCode.length);
 					
 					if (payloadStart.length > payloadEnd) {
 						static if (T.length == 1) {
@@ -468,7 +468,7 @@ struct Database {
 			if (payloadHeaderSize > page.length - offset) {
 				assert(0, "Overflowing payloadHeaders are currently not handeled");
 			}
-			auto ph = page[offset + payloadHeaderSize.length .. offset + payloadHeaderSize];
+			auto ph = page[offset + payloadHeaderSize.length .. offset + cast(size_t)payloadHeaderSize];
 			offset += payloadHeaderSize;
 
 			return Row(pages, cast(uint) payloadSize, cast(uint) rowId, cast(uint) payloadHeaderSize , ph, page[offset .. $]);
@@ -812,7 +812,7 @@ static Database.Payload extractPayload(
 	
 
 	if (overflowInfo.pageSlice.length >= typeCode.length) {
-		auto _length = typeCode.length;
+		auto _length = cast(uint) typeCode.length;
 
 		auto payload = overflowInfo.pageSlice[0 .. _length];
 		overflowInfo.pageSlice = overflowInfo.pageSlice[_length .. $];
@@ -874,19 +874,19 @@ static Database.Payload extractPayload(const ubyte[] startPayload,
 			p.int8 = *cast(byte*) startPayload;
 			break;
 		case typeof(typeCode).int16:
-			p.int16 = *cast(BigEndian!short*) startPayload;
+			p.int16 = *cast(short*) startPayload;
 			break;
 		case typeof(typeCode).int24:
 			p.int24 = (*cast(int*) startPayload) & 0xfff0;
 			break;
 		case typeof(typeCode).int32:
-			p.int32 = *cast(BigEndian!int*) startPayload;
+			p.int32 = *cast(int*) startPayload;
 			break;
 		case typeof(typeCode).int48:
-			p.int48 = (*cast(BigEndian!long*) startPayload) & 0xffffff00;
+			p.int48 = (*cast(long*) startPayload) & 0xffffff00;
 			break;
 		case typeof(typeCode).int64:
-			p.int64 = *cast(BigEndian!long*) startPayload;
+			p.int64 = *cast(long*) startPayload;
 			break;
 		case typeof(typeCode).float64:
 			if (!__ctfe)
