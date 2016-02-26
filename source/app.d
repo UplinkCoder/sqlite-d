@@ -20,17 +20,19 @@ void* pageHandler(Database.BTreePage page, Database.PageRange pages, void* unuse
 void* countCellsHandler(Database.BTreePage page, Database.PageRange pages, void* currentCount) {
 	*cast(uint*)currentCount += page.header.cellsInPage;
 	return currentCount;
-}	
-static immutable ubyte[] test_s3db = cast(immutable ubyte[]) import("test4.s3db");
+}
+
+static immutable ubyte[] test_s3db = cast(immutable ubyte[]) import("test.s3db");
 static immutable db = cast(immutable)Database(test_s3db, "");
 static immutable pages =  cast(immutable)db.pages();
 static immutable rp = cast(immutable)pages[0];
+
 /+
 uint ct () { 
 	uint cnt;
 	handlePage!((page, pages) => cnt += page.header.cellsInPage) (rp, db.pages);
 	return cnt;
-}+/
+}
 auto pn_() {
 
 	Database.Row[] rows;
@@ -50,6 +52,8 @@ auto pn_() {
 	+/
 	return handleRow!(r => r.colums(0).getAs!string)(rp, pages);
 }
++/
+
 /+
 auto getTableNames(const Database db) {
 	import std.array : array;
@@ -124,13 +128,13 @@ auto getRootPageOf1(const Database db, const string tableName) {
 				r.colums(1).getAs!string == tableName) {
 				rootPage = r.colums(3).getAs!uint - 1;
 			}
-	})(rp, pages);
+	})(db.pages[0], db.pages);
 
 
 	return rootPage;
 }
 
-pragma(msg, getRootPageOf1(db, "Artist"));
+//pragma(msg, getRootPageOf1(db, "Album"));
 
 //
 //auto getRootPageOf2(const Database db, const string tableName) {
@@ -143,21 +147,21 @@ pragma(msg, getRootPageOf1(db, "Artist"));
 //		)(rp, pages).join;
 //}
 
-pragma(msg, pn_);
+//pragma(msg, pn_);
 
 int main(string[] args) {
 	import std.stdio;
 //	GC.disable();
 //	fn_();
-	string filename = (args.length > 1 ? args[1] : "example/test.s3db");
-	auto pageNr = (args.length > 2 ? parse!(int)(args[2]) : 0);
+//	string filename = (args.length > 1 ? args[1] : "example/test4.s3db");
+//	auto pageNr = (args.length > 2 ? parse!(int)(args[2]) : 0);
 //	writefln("opening file %s", filename); 
 //	auto db = new Database(filename);
-//	static if (is(typeof(db) : typeof(null))) {
-//		auto db = db;
-//	} else {
-//		auto db = &db;
-//	}
+
+	Database.MasterTableSchema[] schemas = handleRow!(r => r.deserialize!(Database.MasterTableSchema))(db.rootPage, db.pages);
+	writeln(schemas);
+
+
 	if (&db !is null) {
 	//	writeln("it appears to be a database");
 	//	writeln(db.pages[page].header);
@@ -166,15 +170,17 @@ int main(string[] args) {
 //		writeln(db.pages[page].getRows(db.pages));
 //		handlePageF(db.pages[page], db.pages, &pageHandler);
 		import std.datetime;
-		const _page = db.pages[pageNr];
+//		const _page = db.pages[pageNr];
 		StopWatch sw;
 
 		foreach(_; 0 .. 2*4096) {
 			string result;
 		
 			sw.start;
-			foreach(row;db.getRowsOf1("Album")) {
+			auto x = result.length;
+			foreach(row;(db).getRowsOf1("Album")) {
 				result = row.colums(1).getAs!string;
+			//	writeln(result);
 			}
 			sw.stop();
 		//	sw.reset();
@@ -183,7 +189,6 @@ int main(string[] args) {
 		writeln("Getting all entries of colum 1 in table Album 4096 times took ", sw.peek().msecs, "msecs");
 
 	//	writeln(db.pages[1].getRows(db.pages));
-		Database.MasterTableSchema[] schemas;
 		//Database.Row[] rows;
 
 
@@ -222,17 +227,17 @@ int main(string[] args) {
 		int a = 12;
 //		writeln(db.tables);
 //		writeln(db.pages.front);
-		//auto firstPage = (*cast(db.BTreePage*)(cast(ubyte*)db.data.ptr + 100));
-		//writeln(cast(char[])db.data);
-		//	writeln(db.BTreePage(db.data.ptr, 100).toString());
-		//	writeln(firstPage.pageType(db.data.ptr));
-		//	writeln(db.VarInt().lengthInVarInt(0x80));
-		//	writeln(db.VarInt().lengthInVarInt(0x7f));
-		//	writeln(db.VarInt().lengthInVarInt(0x7dff));
-		//	writeln(db.VarInt().lengthInVarInt(0x_ffff_ffff_ffff_ffff));
-		//foreach(page;db.pages) {
-		//	writeln(page);
-		//}
+//		auto firstPage = (*cast(db.BTreePage*)(cast(ubyte*)db.data.ptr + 100));
+//		writeln(cast(char[])db.data);
+//			writeln(db.BTreePage(db.data.ptr, 100).toString());
+//			writeln(firstPage.pageType(db.data.ptr));
+//			writeln(db.VarInt().lengthInVarInt(0x80));
+//			writeln(db.VarInt().lengthInVarInt(0x7f));
+//			writeln(db.VarInt().lengthInVarInt(0x7dff));
+//			writeln(db.VarInt().lengthInVarInt(0x_ffff_ffff_ffff_ffff));
+//		foreach(page;db.pages) {
+//			writeln(page);
+//		}
 		return 0;
 	} else {
 //		writeln("invalid database or header corrupted");

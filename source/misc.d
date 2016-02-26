@@ -3,24 +3,16 @@ module misc;
 import sqlited;
 import utils;
 
-struct_type[] deserialize(alias struct_type)(Row r) {
+struct_type deserialize(struct_type)(Database.Row r) {
 	struct_type instance;
 	uint ctr;
 	foreach (member; __traits(derivedMembers, struct_type)) {
-		alias type = typeof(__traits(getMember, member, instance));
+		alias type = typeof(__traits(getMember, instance, member));
 		static if (!is(type == function)) {
-			__traits(getMember, member, instance) = r.getAs!(type)(ctr++);
+			__traits(getMember, instance, member) = r.getAs!(type)(ctr++);
 		}
 	}
-	return [instance];
-}
-
-struct_type[] deserialize(alias struct_type)(Row[] ra) {
-	struct_type[] result;
-	foreach (r; ra) {
-		result ~= deserialize(r);
-	}
-	return result;
+	return instance;
 }
 
 /// usage : table.select("name","surname").where!("age","sex", (age, sex) => sex.as!Sex == Sex.female, age.as!uint < 40))

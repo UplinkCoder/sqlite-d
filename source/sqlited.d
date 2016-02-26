@@ -281,7 +281,16 @@ struct Database {
 		_cachedHeader = SQLiteHeader.fromArray(buffer); 
 		assert(_cachedHeader.magicString[0..6] == "SQLite");
 	}
-
+	/**
+	 * CREATE TABLE sqlite_master(
+	 *	type text,
+	 *	name text,
+	 *	tbl_name text,
+	 *	rootpage integer,
+	 *	sql text
+	 * );
+	 *	 
+	 */
 	static struct MasterTableSchema {
 		string type;
 		string name;
@@ -301,16 +310,7 @@ struct Database {
 		}
 	}
 
-	/*
-	 * CREATE TABLE sqlite_master(
-	 *	type text,
-	 *	name text,
-	 *	tbl_name text,
-	 *	rootpage integer,
-	 *	sql text
-	 * );
-	 *	 
-	 */
+
 
 	static struct BTreePage {
 		const ubyte[] page;
@@ -387,8 +387,8 @@ struct Database {
 					
 					} else {
 						static if (T.length == 1) {
-							auto overflowInfo = OverflowInfo(payloadSize, pages.usablePageSize, payloadHeaderSize);
-							return extractPayload(payloadStart, typeCode, &overflowInfo, pages);
+							auto overflowInfo = OverflowInfo(payloadStart, offset, payloadSize, pages, payloadHeaderSize);
+							return extractPayload(&overflowInfo, typeCode, pages);
 						//	assert(0,"Sorry no overflow ... yet");
 						} else {
 						//	result[n] = extractPayload(payloadStart, typeCode, &overflowInfo, pages);
@@ -763,66 +763,76 @@ struct Database {
 
 
 struct OverflowInfo {
-	uint remainingTotalPayload;
+	const(ubyte)[] pageSlice;
 	uint nextPageIdx;
-	uint payloadOnFirstPage;
-	uint pageOffset;
 
-	this(uint payloadSize,  uint usablePageSize, uint payloadHeaderSize)  pure {
+	this(const ubyte[] payloadStart, int offset, uint payloadSize, const Database.PageRange pages, uint payloadHeaderSize)  pure {
 		import std.algorithm : min;
 
-		auto m = ((usablePageSize - 12) * 32 / 255) - 23;
-		auto x1 = cast(uint) m + ((payloadSize - m) % (usablePageSize - 4));
+		if (payloadSize > pages.usablePageSize - 35) {
+			auto m = ((pages.usablePageSize - 12) * 32 / 255) - 23;
+			auto x1 = cast(uint) m + ((payloadSize - m) % (pages.usablePageSize - 4));
 
-		remainingTotalPayload = payloadSize;
-		payloadOnFirstPage = min(usablePageSize - 35, x1) - payloadHeaderSize;
+			auto payloadOnFirstPage = min(pages.usablePageSize - 35, x1) - payloadHeaderSize;
+			nextPageIdx = BigEndian!uint(payloadStart[payloadOnFirstPage .. payloadOnFirstPage + uint.sizeof]);
+		
+			if(offset > payloadOnFirstPage) {
+				offset -= payloadOnFirstPage;
+				gotoNextPage(pages);
+
+				auto payloadOnOverflowPage = pages.usablePageSize - uint.sizeof;
+				while(offset>payloadOnOverflowPage) {
+					gotoNextPage(pages);
+					offset -= payloadOnOverflowPage;
+				}
+			} else {
+				pageSlice = payloadStart[0 .. payloadOnFirstPage];
+			}
+		} else {
+			pageSlice = payloadStart;
+		}
+		debug {
+			import std.stdio;
+			writeln("ps.len: ", pageSlice.length, " offset: ",offset);
+		}
+		pageSlice = pageSlice[offset .. $];
 	}
+
+	void gotoNextPage(const Database.PageRange pages) pure {
+		assert(nextPageIdx != 0, "No next Page to go to");
+		auto nextPage = pages[nextPageIdx - 1];
+		nextPageIdx = BigEndian!uint(nextPage.page[0 .. uint.sizeof]);
+		pageSlice = nextPage.page[uint.sizeof .. $];
+		debug {
+			import std.stdio;
+				writeln("going to page ",nextPageIdx);
+		}
+	}
+
 }
 
-static assert (OverflowInfo.sizeof % 16 == 0);
 
 static Database.Payload extractPayload(
-	const ubyte[] startPayload,
-	const Database.Payload.SerialTypeCode typeCode,
 	OverflowInfo* overflowInfo,
+	const Database.Payload.SerialTypeCode typeCode,
 	const Database.PageRange pages,
 	) pure {
 	
-	static void gotoNextPage(OverflowInfo* overflowInfo,
-		const Database.PageRange pages) {
-		
-		assert(overflowInfo.nextPageIdx != 0, "No next Page to go to");
-		auto nextPage = pages[overflowInfo.nextPageIdx - 1];
-		BigEndian!uint np;
-		np = nextPage.page[0 .. uint.sizeof];
-		overflowInfo.nextPageIdx = np;
-		
-		overflowInfo.pageOffset = uint.sizeof;
-	}
 
-	auto pageSlice = overflowInfo.nextPageIdx == 0 
-			? startPayload
-			: pages[overflowInfo.nextPageIdx].page;
-
-	if (overflowInfo.payloadOnFirstPage >= typeCode.length) {
+	if (overflowInfo.pageSlice.length >= typeCode.length) {
 		auto _length = typeCode.length;
 
-		overflowInfo.remainingTotalPayload -= _length;
-		overflowInfo.payloadOnFirstPage -= _length;
-		overflowInfo.pageOffset += _length;
+		auto payload = overflowInfo.pageSlice[0 .. _length];
+		overflowInfo.pageSlice = overflowInfo.pageSlice[_length .. $];
 
-		auto oldOffset = overflowInfo.pageOffset - _length;
-
-
-		if (overflowInfo.payloadOnFirstPage == 0
-			&& overflowInfo.remainingTotalPayload > 0) {
+		if (overflowInfo.pageSlice.length == uint.sizeof) {
 			assert(0, "I do not expect us to ever get here"
 				"If we ever do, uncomment the two lines below and delete this assert");
-			//	nextPageIdx = *cast(uint*)*startPayload;
-			//	gotoNextPage(overflowInfo, pages);
+		//		overflowInfo.nextPageIdx = BigEndian(overflowInfo.pageSlice[0 .. uint.sizeof]);
+		//		overflowInfo.gotoNextPage(pages);
 		}
 
-		return extractPayload(pageSlice[oldOffset .. oldOffset + _length], typeCode);
+		return extractPayload(payload, typeCode);
 	} else { // typeCode.length > payloadOnFirstPage
 		// We need to consolidate the Payload here...
 		// let's assume SQLite is sane and does not split primitive types in the middle
@@ -834,37 +844,12 @@ static Database.Payload extractPayload(
 		if (!__ctfe) {
 			_payloadBuffer.reserve(cast(uint) typeCode.length);
 		}
-
-
-		if (overflowInfo.payloadOnFirstPage != 0) {
-			auto pofp = overflowInfo.payloadOnFirstPage;
-			auto pofp_plus_offset = pofp + overflowInfo.pageOffset;
-
-			_payloadBuffer ~= pageSlice[overflowInfo.pageOffset .. pofp_plus_offset].dup;
-			
-			remainingBytesOfPayload -= pofp;
-			overflowInfo.remainingTotalPayload -= pofp;
-			overflowInfo.nextPageIdx = 
-				*(cast(BigEndian!uint*) startPayload[pofp_plus_offset .. pofp_plus_offset + 4]);
-			overflowInfo.payloadOnFirstPage = 0;
-			gotoNextPage(overflowInfo, pages);
-		}
-
-
-		
 		
 		for (;;) {
-			if(remainingBytesOfPayload > overflowInfo.remainingTotalPayload) {
-				debug { 
-					import std.stdio;
-					writeln(remainingBytesOfPayload, " > ", overflowInfo.remainingTotalPayload);
-				}
-				
-			}
 
 			import std.algorithm : min;
 			
-			auto readBytes = cast(uint) min(pages.usablePageSize - uint.sizeof,
+			auto readBytes = cast(uint) min(overflowInfo.pageSlice.length,
 				remainingBytesOfPayload);
 			
 			debug {
@@ -873,26 +858,21 @@ static Database.Payload extractPayload(
 				writeln("readBytes : ", readBytes);
 				writeln("remainingBytesOfPayload: ",
 					remainingBytesOfPayload);
+				writeln("pageSlice_length", overflowInfo.pageSlice.length);
 			}
 			remainingBytesOfPayload -= readBytes;
-			
-			_payloadBuffer ~= pages[overflowInfo.nextPageIdx].page[uint.sizeof .. readBytes + uint.sizeof];
+
+			_payloadBuffer ~= overflowInfo.pageSlice[0 .. readBytes];
 
 			if (remainingBytesOfPayload == 0) {
-				overflowInfo.remainingTotalPayload -= _payloadBuffer.length;
-				assert(overflowInfo.pageOffset == uint.sizeof);
-				overflowInfo.pageOffset += readBytes;
-				overflowInfo.payloadOnFirstPage = pages.usablePageSize - readBytes;
-				if(_payloadBuffer.length != typeCode.length) {
-					debug {
-					import std.stdio;
-					writeln("pbl:",_payloadBuffer.length," tcl",typeCode.length );
-					}
-				}
+				assert(typeCode.length == _payloadBuffer.length);
 
 				return extractPayload(cast(const)_payloadBuffer, typeCode);
 			} else {
-				gotoNextPage(overflowInfo, pages);
+				if (overflowInfo.nextPageIdx == 0 && !remainingBytesOfPayload) {
+
+				}
+				overflowInfo.gotoNextPage(pages);
 			}
 		}
 	}
@@ -1029,7 +1009,7 @@ auto getAs(T)(Database.Payload p) {
 }
 
 auto getAs(T)(Database.Row r, uint columIndex) {
-	return r[columIndex].getAs!T();
+	return r.colums(columIndex).getAs!T();
 }
 
 auto getAs(T)(Database.Row r, Database.TableSchema s, string colName) {
