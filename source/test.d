@@ -1,4 +1,4 @@
-﻿module test;
+module test;
 import sqlited;
 import misc;
 

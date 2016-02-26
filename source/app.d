@@ -168,8 +168,7 @@ auto getRootPageOf2(const Database db, const string tableName) {
 //pragma(msg, pn_);
 
 int main(string[] args) {
-	import std.stdio;
-//	GC.disable();
+//	import std.stdio;
 //	fn_();
 //	string filename = (args.length > 1 ? args[1] : "example/test4.s3db");
 //	auto pageNr = (args.length > 2 ? parse!(int)(args[2]) : 0);
@@ -179,7 +178,10 @@ int main(string[] args) {
 	Database.MasterTableSchema[] schemas;
 	schemas = handleRow!(r => r.deserialize!(Database.MasterTableSchema))(rp4, pages4);
 	writeln(schemas);
-
+	auto test_db = Database("views/test.s3db");
+	foreach(row;test_db.getRowsOf1("source_location")) {
+		writeln(row.colums(2).getAs!uint);
+	}
 //	if (db !is null) {
 	//	writeln("it appears to be a database");
 	//	writeln(db.pages[page].header);
