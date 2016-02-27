@@ -93,8 +93,8 @@ struct Database {
 
 			this(VarInt v) pure nothrow {
 				long _v = v;
-				if (v > 11) {
-					if (v & 1) {
+				if (_v > 11) {
+					if (_v & 1) {
 						type = SerialTypeCode.SerialTypeCodeEnum._string;
 						length = (_v - 13) / 2;
 					} else {
@@ -241,21 +241,25 @@ struct Database {
 
 		static SQLiteHeader fromArray (const ubyte[] raw) pure {
 			assert(raw.length >= this.sizeof);
-			SQLiteHeader result;
+			if (__ctfe) {
+				SQLiteHeader result;
 
-			result.magicString = cast(char[])raw[0 .. 16];
-			result.pageSize = raw[16 .. 18];
-			result.FileFormatWriteVer = cast(FileFormat)raw[18 .. 19][0];
-			result.FileFormatReadVer = cast(FileFormat)raw[19 .. 20][0];
-			result.reserved = raw[20 .. 21][0];
-			//	result.maxEmbeddedPayloadFract = raw[21 .. 22];
-			//	result.minEmbeddedPayloadFract = raw[22 .. 23];
-			//	result.leafPayloadFract = raw[23 .. 24]
-			result.fileChangeCounter = raw[24 .. 28];
-			result.sizeInPages = raw[28 .. 32];
-			result.firstFreelistPage = raw[32 .. 36];
+				result.magicString = cast(char[])raw[0 .. 16];
+				result.pageSize = raw[16 .. 18];
+				result.FileFormatWriteVer = cast(FileFormat)raw[18 .. 19][0];
+				result.FileFormatReadVer = cast(FileFormat)raw[19 .. 20][0];
+				result.reserved = raw[20 .. 21][0];
+				//	result.maxEmbeddedPayloadFract = raw[21 .. 22];
+				//	result.minEmbeddedPayloadFract = raw[22 .. 23];
+				//	result.leafPayloadFract = raw[23 .. 24]
+				result.fileChangeCounter = raw[24 .. 28];
+				result.sizeInPages = raw[28 .. 32];
+				result.firstFreelistPage = raw[32 .. 36];
 
-			return result;
+				return result;
+			} else {
+				return *(cast(SQLiteHeader*) raw);
+			}
 		}
 	}
 
@@ -623,18 +627,22 @@ struct Database {
 
 			static BTreePageHeader fromArray(const ubyte[] _array) pure {
 				assert(_array.length >= this.sizeof);
-				BTreePageHeader result;
+				if (__ctfe) {
+					BTreePageHeader result;
 
-				result._pageType = cast(BTreePageType)_array[0];
-				result.firstFreeBlock = _array[1 .. 3]; 
-				result.cellsInPage = _array[3 .. 5];
-				result.startCellContantArea = _array[5 .. 7];
-				result.fragmentedFreeBytes = _array[7];
-				if (result.isInteriorPage) {
-					result._rightmostPointer = _array[8 .. 12];
+					result._pageType = cast(BTreePageType)_array[0];
+					result.firstFreeBlock = _array[1 .. 3]; 
+					result.cellsInPage = _array[3 .. 5];
+					result.startCellContantArea = _array[5 .. 7];
+					result.fragmentedFreeBytes = _array[7];
+					if (result.isInteriorPage) {
+						result._rightmostPointer = _array[8 .. 12];
+					}
+
+					return result;
+				} else {
+					return *(cast (BTreePageHeader*) _array.ptr);
 				}
-
-				return result;
 			}
 
 			bool isInteriorPage() pure const {
@@ -722,7 +730,7 @@ struct Database {
 		}
 
 		BigEndian!ushort[] getCellPointerArray() const pure {
-			auto offset = header.length + headerOffset; 
+			auto offset = header.length + headerOffset;
 			return page[offset .. offset + header.cellsInPage * ushort.sizeof]
 				.toArray!(BigEndian!ushort)(header.cellsInPage);
 		}

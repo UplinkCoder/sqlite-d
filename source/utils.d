@@ -126,25 +126,30 @@ static struct CArray(TElement) {
 }
 
 T[] toArray(T)(const ubyte[] _array, const size_t size) {
-	T[] result;
-	alias sliceType = typeof(_array[0 .. T.sizeof]);
-	 
-	result.length = size;
+	if (__ctfe) {
+		T[] result;
+		alias sliceType = typeof(_array[0 .. T.sizeof]);
+		
+		result.length = size;
 
-	foreach(i; 0 .. size) {
-		const pos = i * T.sizeof;
-		static if (is(typeof(T(sliceType.init)))) {
-			result[i] = T(_array[pos .. pos + T.sizeof]);
-		} else static if (is(typeof(T.init = sliceType.init))) {
-			T tmp;
-			tmp = _array[pos .. pos + T.sizeof];
-			result[i] = tmp;
-		} else {
-			static assert(0, T.stringof ~ " has to have a constructor or opAssign taking " ~ sliceType.stringof);
+		foreach(i; 0 .. size) {
+			const pos = i * T.sizeof;
+			static if (is(typeof(T(sliceType.init)))) {
+				result[i] = T(_array[pos .. pos + T.sizeof]);
+			} else static if (is(typeof(T.init = sliceType.init))) {
+				T tmp;
+				tmp = _array[pos .. pos + T.sizeof];
+				result[i] = tmp;
+			} else {
+				static assert(0, T.stringof ~ " has to have a constructor or opAssign taking " ~ sliceType.stringof);
+			}
 		}
-	}
 
-	return result;
+		return result;
+	} else {
+		return cast(T[])(_array);
+	}
+	
 }
 
 uint sizeInBytes(ulong val) pure @nogc nothrow {

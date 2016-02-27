@@ -10,10 +10,9 @@ import utils;
 	
 }+/
 
-static align(1) struct VarInt {
+static struct VarInt {
 	const ubyte[] byteArray;
 	pure nothrow @nogc :
-align(1):
 
 	alias toBeLong this;
 	alias toBeLong = toBeLongImpl;
