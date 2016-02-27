@@ -1,7 +1,7 @@
 //import std.stdio;
 import sqlited;
-import sqlite.utils;
-import sqlite.misc;
+import utils;
+import misc;
 import std.conv;
 import std.stdio;
 import core.memory;
@@ -120,7 +120,7 @@ int main(string[] args) {
 		const _page = db.pages[pageNr];
 		StopWatch sw;
 
-		foreach(_; 0 .. 4096) {
+		foreach(_; 0 .. 2*4096) {
 			string[] results;
 		
 			sw.start;

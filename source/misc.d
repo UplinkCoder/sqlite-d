@@ -1,7 +1,7 @@
-module sqlite.misc;
+module misc;
 
 import sqlited;
-import sqlite.utils;
+import utils;
 
 struct_type[] deserialize(alias struct_type)(Row r) {
 	struct_type[1] instance;
@@ -132,25 +132,24 @@ RR handlePage(alias pageHandler, RR = handlerRetrunType!(pageHandler)[])(const D
 				static assert(0, "pageHandler has to be callable with (BTreePage) or (BTreePage, pagesRange)" ~ typeof(pageHandler).stringof);
 			}
 		}
-
-	case tableInteriorPage: {
-			uint[] pageNumbers;
+		case tableInteriorPage: {
 			auto cpa = page.getCellPointerArray();
-		//	pageNumbers.reserve(cpa.length + 1);
-			foreach (cp; cpa) {
-				BigEndian!uint leftChildPage;
-				leftChildPage = (page.page[cp .. cp + uint.sizeof]);
-				pageNumbers ~= leftChildPage;
-			}
-			pageNumbers ~= page.header._rightmostPointer;
-			foreach (pageIndex; pageNumbers) {
-				auto _page = pages[pageIndex - 1];
+
+
+			foreach(cp;cpa) {
 				static if (nullReturnHandler) {
-					handlePage!pageHandler(_page, pages);
+					handlePage!pageHandler(pages[BigEndian!uint(page.page[cp .. cp + uint.sizeof]) - 1], pages);
 				} else {
-					returnRange ~= handlePage!pageHandler(_page, pages, returnRange);
+					returnRange ~= handlePage!pageHandler(pages[BigEndian!uint(page.page[cp .. cp + uint.sizeof]) - 1], pages, returnRange);
 				}
 			}
+
+			static if (nullReturnHandler) {
+				handlePage!pageHandler(pages[page.header._rightmostPointer - 1], pages);
+			} else {
+				returnRange ~= handlePage!pageHandler(pages[page.header._rightmostPointer - 1], pages, returnRange);
+			}
+
 			break;
 		}
 

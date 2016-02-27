@@ -1,6 +1,6 @@
 module sqlited;
-import sqlite.utils;
-import sqlite.varint;
+import utils;
+import varint;
 
 version = C_compat;
 
@@ -95,17 +95,18 @@ struct Database {
 				_string = (13)
 			}
 
-			this(VarInt v) pure  {
+			this(VarInt v) pure nothrow {
+				long _v = v;
 				if (v > 11) {
 					if (v & 1) {
 						type = SerialTypeCode.SerialTypeCodeEnum._string;
-						length = (v - 13) / 2;
+						length = (_v - 13) / 2;
 					} else {
 						type = SerialTypeCode.SerialTypeCodeEnum.blob;
-						length = (v - 12) / 2;
+						length = (_v - 12) / 2;
 					}
 				} else {
-					type = cast(SerialTypeCodeEnum) v;
+					type = cast(SerialTypeCodeEnum) _v;
 					final switch (type) with (SerialTypeCodeEnum) {
 						case NULL:
 							length = 0;
@@ -358,8 +359,10 @@ struct Database {
 				
 				import std.algorithm : min, max, isSorted;
 				//assert(typeCodes.length > max(colNums, 0));
-				assert(isSorted([colNums]));
-				
+				static if (T.length > 1) {
+					assert(isSorted([colNums]));
+				}
+
 				static if (T.length > 1) {
 					Payload[T.length] result;
 				}
@@ -405,28 +408,46 @@ struct Database {
 		}
 
 
-		Row[] getRows(const PageRange pages) pure const {
+		Row[] getRows(const PageRange pages) const {
 			version(Multithreaded) {
-				auto cellPointers = parallel(getCellPointerArray());
+				import std.parallelism;
 				import atomicarray;
 				AtomicArray!Row rows;
 			} else {
-				auto cellPointers = getCellPointerArray();
+
 				Row[] rows;
 			}
 			import std.parallelism;
 
 			assert(pageType == BTreePageType.tableLeafPage, "only tableLeafPages are supported for now");
 
-			foreach (cp; cellPointers) {
+
 				version(Multithreaded) {
-					rows ~= atomicValue(getRow(cp, pages), cast(uint)cp);
+				Row[] ctfeRows;
+					if (__ctfe) {
+						auto cellPointers = getCellPointerArray();
+						foreach (cp; cellPointers) {
+							ctfeRows ~= getRow(cp, pages); 
+						}
+					} else {
+					auto cellPointers = getCellPointerArray();
+					foreach (cp; parallel(cellPointers)) {
+							rows ~= atomicValue(getRow(cp, pages), cast(uint)cp);
+						}
+					}
 				} else {
-					rows ~= getRow(cp, pages);
+					auto cellPointers = getCellPointerArray();
+					foreach (cp; cellPointers) {
+						rows ~= getRow(cp, pages);
+					}
 				}
-			}
+
 			version(Multithreaded) {
-				return cast(Row[]) rows._data;
+				if (__ctfe) {
+					return ctfeRows;
+				} else {
+					return cast(Row[]) rows._data;
+				}
 			} else {
 				return rows;
 			}
@@ -703,12 +724,10 @@ struct Database {
 			return BTreePageHeader.fromArray(page[headerOffset.. headerOffset + BTreePageHeader.sizeof]);
 		}
 
-		
-
 		BigEndian!ushort[] getCellPointerArray() const pure {
 			auto offset = header.length + headerOffset; 
 			return page[offset .. offset + header.cellsInPage * ushort.sizeof]
-			.toArray!(BigEndian!ushort)(header.cellsInPage);
+				.toArray!(BigEndian!ushort)(header.cellsInPage);
 		}
 
 		BTreePageHeader.BTreePageType pageType() const pure {
@@ -772,11 +791,7 @@ static Database.Payload extractPayload(
 		const Database.PageRange pages) {
 		
 		assert(overflowInfo.nextPageIdx != 0, "No next Page to go to");
-		debug {
-			import std.stdio;
-			writeln("goto page : ", *overflowInfo);
-		}
-		auto nextPage = pages[(overflowInfo.nextPageIdx) - 1];
+		auto nextPage = pages[overflowInfo.nextPageIdx - 1];
 		BigEndian!uint np;
 		np = nextPage.page[0 .. uint.sizeof];
 		overflowInfo.nextPageIdx = np;
@@ -790,11 +805,14 @@ static Database.Payload extractPayload(
 
 	if (overflowInfo.payloadOnFirstPage >= typeCode.length) {
 		auto _length = typeCode.length;
+
 		overflowInfo.remainingTotalPayload -= _length;
 		overflowInfo.payloadOnFirstPage -= _length;
-
-		auto oldOffset = overflowInfo.pageOffset;
 		overflowInfo.pageOffset += _length;
+
+		auto oldOffset = overflowInfo.pageOffset - _length;
+
+
 		if (overflowInfo.payloadOnFirstPage == 0
 			&& overflowInfo.remainingTotalPayload > 0) {
 			assert(0, "I do not expect us to ever get here"
@@ -821,10 +839,6 @@ static Database.Payload extractPayload(
 			auto pofp = overflowInfo.payloadOnFirstPage;
 			auto pofp_plus_offset = pofp + overflowInfo.pageOffset;
 
-			debug {
-				import std.stdio;
-				writeln("pofp",  *overflowInfo, " sp.ln ", pageSlice.length - 4);
-			}
 			_payloadBuffer ~= pageSlice[overflowInfo.pageOffset .. pofp_plus_offset].dup;
 			
 			remainingBytesOfPayload -= pofp;

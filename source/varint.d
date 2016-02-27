@@ -1,5 +1,5 @@
-module sqlite.varint;
-import sqlite.utils;
+module varint;
+import utils;
 
 
 /+string varintLengthCheck(uint maxLen) {

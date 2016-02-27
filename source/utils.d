@@ -1,4 +1,4 @@
-module sqlite.utils;
+module utils;
 /** this struct tries to keep it's own value as BigEndian */
 struct BigEndian(T) {
 	T asNative;
@@ -20,6 +20,17 @@ struct BigEndian(T) {
 		} else {
 			this.asNative = val;
 		}
+	}
+
+	this(const ubyte[] _array) {
+		assert(T.sizeof == _array.length);
+		T tmp;
+		// (XXX) Consider swaping while reading them in.
+		foreach(i;0 .. T.sizeof) {
+			tmp |= (_array[i] << (T.sizeof - i - 1)*8UL); 
+		}
+		this.asNative = swapIfNeeded(tmp);
+
 	}
 	
 	BigEndian!T opAssign(BigEndian!T val) {
@@ -118,17 +129,16 @@ T[] toArray(T)(const ubyte[] _array, const size_t size) {
 	T[] result;
 	alias sliceType = typeof(_array[0 .. T.sizeof]);
 	 
-//	result.length = size;
-
+	result.length = size;
 
 	foreach(i; 0 .. size) {
 		const pos = i * T.sizeof;
-		static if (is(typeof(T.init = sliceType.init))) {
+		static if (is(typeof(T(sliceType.init)))) {
+			result[i] = T(_array[pos .. pos + T.sizeof]);
+		} else static if (is(typeof(T.init = sliceType.init))) {
 			T tmp;
 			tmp = _array[pos .. pos + T.sizeof];
-			result ~= tmp;
-		} else static if (is(typeof(T(sliceType)))) {
-			result ~= T(_array[pos .. pos + T.sizeof]);
+			result[i] = tmp;
 		} else {
 			import std.conv;
 			static assert(0, T.stringof ~ " has to have a constructor or opAssign taking " ~ sliceType.stringof);
