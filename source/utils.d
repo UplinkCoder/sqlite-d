@@ -147,6 +147,30 @@ T[] toArray(T)(const ubyte[] _array, const size_t size) {
 	}
 }
 
+T fromArray(T)(const ubyte[] _array) {
+	uint offset;
+	T result;
+	static assert(T.alignof == 1, "Be sure to use this only on align(1) structures!");
+	assert(_array.length >= T.sizeof,"your input array needs to be at least as long as your type.sizeof");
+
+	///XXX this cucially depends on your type being byte aligned!
+	foreach (member; __traits(derivedMembers, struct_type)) {
+		alias type = typeof(__traits(getMember, instance, member));
+
+		static if (!is(type == function)) {
+			alias sliceType = typeof(_array[0 .. type.sizeof]);
+			static if (is(typeof(type(sliceType.init)))) {
+				__traits(getMember, result, member) = type(_array[offset .. offset + type.sizeof]);
+			} else static if (type.sizeof == sliceType.init[0].sizeof && is(typeof(cast(type)(sliceType.init[0])))) {
+				__traits(getMember, result, member) = type(_array[offset .. offset + type.sizeof][0]);
+			} else {
+				static assert(0, T.stringof ~ " has to have a constructor taking or needs to be castable to ubyte" ~ sliceType.stringof);
+			}
+			offset += type.sizeof;
+		}
+	}
+}
+
 uint sizeInBytes(ulong val) pure @nogc nothrow {
 	foreach(n;0 .. cast(uint)ulong.sizeof) {
 		if (!(val >>= 8)) {
