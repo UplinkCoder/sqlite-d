@@ -1,15 +1,12 @@
 module sqlited;
+/****************************
+ * SQLite-D SQLite 3 Reader *
+ * By Stefan Koch 2016      *
+*****************************/
+
+
 import utils;
 import varint;
-
-version = C_compat;
-
-version (C_compat) {
-	extern (C):
-	Database fromBuffer(ubyte* bufPtr, uint size) {
-		return Database(bufPtr[0 .. size]);
-	}
-}
 
 struct Database {
 	string dbFilename;
@@ -408,51 +405,6 @@ struct Database {
 			}
 		}
 
-
-//		Row[] getRows(const PageRange pages) const {
-//			version(Multithreaded) {
-//				import std.parallelism;
-//				import atomicarray;
-//				AtomicArray!Row rows;
-//			} else {
-//
-//				Row[] rows;
-//			}
-//			import std.parallelism;
-//
-//			assert(pageType == BTreePageType.tableLeafPage, "only tableLeafPages are supported for now");
-//
-//
-//				version(Multithreaded) {
-//				Row[] ctfeRows;
-//					if (__ctfe) {
-//						auto cellPointers = getCellPointerArray();
-//						foreach (cp; cellPointers) {
-//							ctfeRows ~= getRow(cp, pages); 
-//						}
-//					} else {
-//					auto cellPointers = getCellPointerArray();
-//					foreach (cp; parallel(cellPointers)) {
-//							rows ~= atomicValue(getRow(cp, pages), cast(uint)cp);
-//						}
-//					}
-//				} else {
-//					auto cellPointers = getCellPointerArray();
-//					foreach (cp; cellPointers) {
-//						rows ~= getRow(cp, pages);
-//					}
-//				}
-//
-//			version(Multithreaded) {
-//				if (__ctfe) {
-//					return ctfeRows;
-//				} else {
-//					return cast(Row[]) rows._data;
-//				}
-//			} else {
-//				return rows;
-//			}
-//		}
 
 		Row getRow(const ushort cellPointer, const PageRange pages) pure const {
 			uint offset = cellPointer;

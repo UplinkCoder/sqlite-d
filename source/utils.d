@@ -1,4 +1,9 @@
 module utils;
+/***************************
+ * Utils used by SQLite-D *
+ * By Stefan Koch 2016    *
+***************************/
+
 /** this struct tries to keep it's own value as BigEndian */
 struct BigEndian(T) {
 	T asNative;
