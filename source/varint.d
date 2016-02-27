@@ -35,8 +35,9 @@ static struct VarInt {
 				tmp |=  (cast(long)val << 63UL);
 			}
 		}
+		// this Assignment evokes a swapIfNeeded call
+	//	result.asNative = swapIfNeeded(tmp);
 		result = tmp;
-
 
 		return result;
 	}
