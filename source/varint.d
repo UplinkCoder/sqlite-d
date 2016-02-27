@@ -12,7 +12,7 @@ import utils;
 
 static struct VarInt {
 	const ubyte[] byteArray;
-	pure nothrow @nogc :
+	pure nothrow @nogc @safe :
 
 	alias toBeLong this;
 	alias toBeLong = toBeLongImpl;
@@ -24,6 +24,7 @@ static struct VarInt {
 		BigEndian!long result;
 		
 		// The hottest loop in the whole program!
+		//TODO There must be a way to speed it up!
 		foreach(idx;0..length) {
 			ubyte val = byteArray[idx];
 			long maskedVal = (cast(long)val & 0x7fUL); // mask 8th bit
@@ -35,13 +36,14 @@ static struct VarInt {
 				tmp |=  (cast(long)val << 63UL);
 			}
 		}
-		// this Assignment evokes a swapIfNeeded call
-	//	result.asNative = swapIfNeeded(tmp);
+		//this evokes swapIfNeeded
 		result = tmp;
+
 
 		return result;
 	}
 	/+
+	 non-functional right now :/
 	static void toVarint(long val) {
 		union U {
 			BigEndian!long beval;

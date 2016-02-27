@@ -382,11 +382,9 @@ struct Database {
 						} else {
 							result[n] = extractPayload(payloadStart[offset .. payloadEnd], typeCode);
 						}
-					
 					} else {
 						auto overflowInfo = OverflowInfo(payloadStart, offset, payloadSize, pages, payloadHeaderSize);
 						static if (T.length == 1) {
-						
 							return extractPayload(&overflowInfo, typeCode, pages);
 						} else {
 							result[n] = extractPayload(&overflowInfo, typeCode, pages);
@@ -414,8 +412,6 @@ struct Database {
 			
 			auto rowId = VarInt(page[offset .. offset + 9]);
 			offset += rowId.length;
-
-		//	debug { import std.stdio; if (!__ctfe) writeln("offset:",offset); if (offset +9 > page.length) assert(0, "Habada"); }
 
 			auto payloadHeaderSize = VarInt(page[offset .. min(offset + 9, page.length)]);
 			uint _payloadHeaderSize = cast(uint)payloadHeaderSize;
@@ -785,16 +781,12 @@ static Database.Payload extractPayload(
 
 		return extractPayload(payload, typeCode);
 	} else { // typeCode.length > payloadOnFirstPage
-		// We need to consolidate the Payload here...
-		// let's assume SQLite is sane and does not split primitive types in the middle
 		alias et = Database.Payload.SerialTypeCode.SerialTypeCodeEnum;
+		// let's assume SQLite is sane and does not split primitive types in the middle
 		assert(typeCode.type == et.blob || typeCode.type == et._string);
 		
 		auto remainingBytesOfPayload = cast(uint) typeCode.length;
 		ubyte[] _payloadBuffer;
-		if (!__ctfe) {
-			_payloadBuffer.reserve(cast(uint) typeCode.length);
-		}
 		
 		for (;;) {
 
