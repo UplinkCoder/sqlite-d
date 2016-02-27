@@ -24,7 +24,6 @@ struct BigEndian(T) {
 
 	this(const ubyte[] _array) @trusted {
 		assert(T.sizeof == _array.length);
-			// (XXX) Consider swaping while reading them in.
 			foreach_reverse(i;0 .. T.sizeof) {
 				asNative |= (_array[i] << i*8UL); 
 			}
