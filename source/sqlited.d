@@ -466,14 +466,15 @@ struct Database {
 		//	debug { import std.stdio; if (!__ctfe) writeln("offset:",offset); if (offset +9 > page.length) assert(0, "Habada"); }
 
 			auto payloadHeaderSize = VarInt(page[offset .. min(offset + 9, page.length)]);
+			uint _payloadHeaderSize = cast(uint)payloadHeaderSize;
 
 			if (payloadHeaderSize > page.length - offset) {
 				assert(0, "Overflowing payloadHeaders are currently not handeled");
 			}
-			auto ph = page[offset + payloadHeaderSize.length .. offset + cast(size_t)payloadHeaderSize];
-			offset += payloadHeaderSize;
+			auto ph = page[offset + payloadHeaderSize.length .. offset + _payloadHeaderSize];
+			offset += _payloadHeaderSize;
 
-			return Row(pages, cast(uint) payloadSize, cast(uint) rowId, cast(uint) payloadHeaderSize , ph, page[offset .. $]);
+			return Row(pages, cast(uint) payloadSize, cast(uint) rowId, cast(uint) _payloadHeaderSize , ph, page[offset .. $]);
 		}
 
 		//		string toString(PageRange pages) {
