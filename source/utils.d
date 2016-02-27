@@ -24,9 +24,9 @@ struct BigEndian(T) {
 
 	this(const ubyte[] _array) @trusted {
 		assert(T.sizeof == _array.length);
-			foreach_reverse(i;0 .. T.sizeof) {
-				asNative |= (_array[i] << i*8UL); 
-			}
+		foreach(i;0 .. T.sizeof) {
+			asNative |= (_array[i] << i*8UL); 
+		}
 	}
 	
 	BigEndian!T opAssign(BigEndian!T val) {
