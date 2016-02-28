@@ -2,6 +2,7 @@ module misc;
 
 import sqlited;
 import utils;
+import std.traits;
 
 struct_type deserialize(struct_type)(Database.Row r) {
 	struct_type instance;
@@ -113,18 +114,17 @@ void handleRow(alias rowHandler, RR)(const Database.BTreePage page,
 	const Database.PageRange pages,  ref RR returnRange) {
 	alias hrt = rowHandlerReturnType!(rowHandler);
 	alias defaultReturnRangeType = hrt[];
-
-	enum nullReturnHandler = is(hrt == void) || is(hrt == typeof(null));
+	enum isPure = is(typeof((){void _() pure {rowHandler(cast(const)Database.Row.init);}}()));
+	enum noReturn = is(hrt == void) || is(hrt == typeof(null));
 
 	auto cpa = page.getCellPointerArray();
 
 	switch (page.pageType) with (Database.BTreePage.BTreePageType) {
 		
 		case tableLeafPage: {
-
 			foreach(cp;cpa) {
 				static if (is(hrt)) {
-					static if (nullReturnHandler) {
+					static if (noReturn) {
 						rowHandler(page.getRow(cp, pages));
 					} else {
 						static if (is (RR == defaultReturnRangeType)) {
@@ -135,7 +135,7 @@ void handleRow(alias rowHandler, RR)(const Database.BTreePage page,
 
 					}
 				} else {
-					static assert(0, "pageHandler has to be callable with (BTreePage) or (BTreePage, pagesRange)" ~ typeof(rowHandler).stringof);
+					static assert(0, "rowHandler has to be callable with (Row)" ~ typeof(rowHandler).stringof);
 				}
 			}
 		}
@@ -143,10 +143,16 @@ void handleRow(alias rowHandler, RR)(const Database.BTreePage page,
 		
 
 		case tableInteriorPage: {
-
-			foreach(cp;cpa) {
+		/*	if (noReturn && isPure && !__ctfe) {
+				import std.parallelism;
+				foreach(cp;parallel(cpa)) {
 					handleRow!rowHandler(pages[BigEndian!uint(page.page[cp .. cp + uint.sizeof]) - 1], pages, returnRange);
-			}
+				}
+			} else { */ 
+				foreach(cp;cpa) {
+					handleRow!rowHandler(pages[BigEndian!uint(page.page[cp .. cp + uint.sizeof]) - 1], pages, returnRange);
+				}
+	//		}
 
 			handleRow!rowHandler(pages[page.header._rightmostPointer - 1], pages, returnRange);
 

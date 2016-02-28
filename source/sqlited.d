@@ -359,6 +359,8 @@ struct Database {
 				import std.algorithm : min, max, isSorted;
 				//assert(typeCodes.length > max(colNums, 0));
 				static if (T.length > 1) {
+					pragma(msg, "using colums to fetch multiple colums at once is probably bad for your perf.\n"
+						"please try using multiple singe-argument calls to colums.")
 					assert(isSorted([colNums]));
 				}
 
@@ -727,6 +729,10 @@ struct OverflowInfo {
 			auto x1 = cast(uint) m + ((payloadSize - m) % (pages.usablePageSize - 4));
 
 			auto payloadOnFirstPage = min(pages.usablePageSize - 35, x1) - payloadHeaderSize;
+			debug {
+				import std.stdio;
+				if (!__ctfe) writeln("payloadOnFirstPage: ",payloadOnFirstPage, " payloadStart.length: ",payloadStart.length);
+			}
 			nextPageIdx = BigEndian!uint(payloadStart[payloadOnFirstPage .. payloadOnFirstPage + uint.sizeof]);
 		
 			if(offset > payloadOnFirstPage) {

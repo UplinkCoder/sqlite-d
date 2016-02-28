@@ -83,8 +83,7 @@ auto getRootPageOf2(const Database db, const string tableName) {
 				rootPage = cols[1].getAs!uint - 1;
 			}
 		})(db.pages[0], db.pages);
-	
-	
+
 	return rootPage;
 }
 
@@ -97,6 +96,7 @@ int main(string[] args) {
 //	auto db = new Database(filename);
 
 	Database.MasterTableSchema[] schemas;
+
 	auto test_db = Database("views/test-2.3.sqlite");
 	schemas = handleRow!(r => r.deserialize!(Database.MasterTableSchema))(test_db.rootPage, test_db.pages);
 	foreach(schema;schemas) {
@@ -114,6 +114,7 @@ int main(string[] args) {
 	}
 	Town[] towns;
 	towns = handleRow!(r => r.deserialize!Town)(test_db.pages[test_db.getRootPageOf2("Towns")], test_db.pages);
+
 	foreach(town;towns) {
 		//writeln(town);
 	}
@@ -123,21 +124,22 @@ int main(string[] args) {
 	//	writeln("it appears to be a database");
 		import std.datetime;
 		StopWatch sw;
-
-		foreach(_; 0 .. 2*4096) {
+		enum times = 2*4096;
+		foreach(_; 0 .. times) {
 			string result;
 		
 			sw.start;
 			auto x = result.length;
 			foreach(row;(db4).getRowsOf1("Album")) {
-				result = row.colums(1).getAs!string;
+			//	writeln(row.colums(1).getAs!string);
 			} 
 			sw.stop();
 		}
 
-		writeln("Getting all entries of colum 1 in table Album 4096 times took ", sw.peek().msecs, "msecs");
-
-
+		writeln("Getting all entries of colum 1 in table Album ", times, " times took ", sw.peek().msecs, "msecs");
+//	foreach(_;0..32) {
+//		writeln(comparingBenchmark!((){test_db.getRootPageOf1("Towns");},(){test_db.getRootPageOf2("Towns");},4096).point);
+//	}
 		return 0;
 //	} else {
 //		writeln("invalid database or header corrupted");
