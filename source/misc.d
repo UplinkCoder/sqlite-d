@@ -74,12 +74,10 @@ template rowHandlerTypeRP(alias rowHandler) {
 template rowHandlerReturnType(alias rowHandler) {
 	alias typeR = rowHandlerTypeR!rowHandler;
 
-
 	static if (is(typeR)) {
 		alias rowHandlerReturnType = typeR;
 	} else {
-		import std.conv;
-		static assert(0, "pageHandler has to be callable with (BTreePage) or (BTreePage, PageRange)" ~ typeof(pageHandler).stringof);
+		static assert(0, "pageHandler has to be callable with (Row)" ~ typeof(rowHandler).stringof);
 	}
 }
 
@@ -92,7 +90,6 @@ template pageHandlerRetrunType(alias pageHandler) {
 	} else static if (is(typeP)) {
 		alias pageHandlerRetrunType = typeP;
 	} else {
-		import std.conv;
 		static assert(0, "pageHandler has to be callable with (BTreePage) or (BTreePage, PageRange)" ~ typeof(pageHandler).stringof);
 	}
 }
@@ -101,7 +98,9 @@ static assert (is(pageHandlerRetrunType!((page, pages) => page)));
 RR handleRow(alias rowHandler, RR = rowHandlerReturnType!(rowHandler)[])(const Database.BTreePage page,
 	const Database.PageRange pages) {
 	RR returnArray;
-	enum isPure = is(typeof((){void _() pure {rowHandler(cast(const)Database.Row.init);}}));
+	enum noReturn = is(RR == void[]);
+	enum isPure = is(typeof((){void _() pure {rowHandler(cast(const)Database.Row.init);}}()));
+
 	pragma(msg, isPure);
 //	static assert(isPure);
 	handleRow!rowHandler(page, pages, returnArray);
@@ -116,9 +115,7 @@ void handleRow(alias rowHandler, RR)(const Database.BTreePage page,
 	alias defaultReturnRangeType = hrt[];
 
 	enum nullReturnHandler = is(hrt == void) || is(hrt == typeof(null));
-	if (returnRange is RR.init && RR.init == null && !nullReturnHandler) {
 
-	}
 	auto cpa = page.getCellPointerArray();
 
 	switch (page.pageType) with (Database.BTreePage.BTreePageType) {
@@ -138,7 +135,6 @@ void handleRow(alias rowHandler, RR)(const Database.BTreePage page,
 
 					}
 				} else {
-					import std.conv;
 					static assert(0, "pageHandler has to be callable with (BTreePage) or (BTreePage, pagesRange)" ~ typeof(rowHandler).stringof);
 				}
 			}
@@ -149,26 +145,16 @@ void handleRow(alias rowHandler, RR)(const Database.BTreePage page,
 		case tableInteriorPage: {
 
 			foreach(cp;cpa) {
-				static if (nullReturnHandler) {
-					handleRow!rowHandler(pages[BigEndian!uint(page.page[cp .. cp + uint.sizeof]) - 1], pages);
-				} else {
 					handleRow!rowHandler(pages[BigEndian!uint(page.page[cp .. cp + uint.sizeof]) - 1], pages, returnRange);
-				}
 			}
 
-			static if (nullReturnHandler) {
-				handleRow!rowHandler(pages[page.header._rightmostPointer - 1], pages);
-			} else {
-				handleRow!rowHandler(pages[page.header._rightmostPointer - 1], pages, returnRange);
-			}
+			handleRow!rowHandler(pages[page.header._rightmostPointer - 1], pages, returnRange);
 
 			break;
 		}
 
 		default:
-			import std.conv;
-
-			assert(0, "pageType not supported" ~ to!string(page.pageType));
+			assert(0, "indexes are not supported by handle Row nor are empty pages");
 	}
 
 	return ;
