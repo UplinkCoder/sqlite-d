@@ -97,12 +97,28 @@ int main(string[] args) {
 //	auto db = new Database(filename);
 
 	Database.MasterTableSchema[] schemas;
-	schemas = handleRow!(r => r.deserialize!(Database.MasterTableSchema))(db4.rootPage, db4.pages);
-	writeln(schemas);
-	auto test_db = Database("views/test.s3db");
-	foreach(row;test_db.getRowsOf1("source_location")) {
-		writeln(row.colums(2).getAs!uint);
+	auto test_db = Database("views/test-2.3.sqlite");
+	schemas = handleRow!(r => r.deserialize!(Database.MasterTableSchema))(test_db.rootPage, test_db.pages);
+	foreach(schema;schemas) {
+		writeln(schema);
 	}
+	writeln("rootPage of Towns:", test_db.getRootPageOf2("Towns"));
+	struct Town {
+		uint PK_UID;
+		string name;
+		uint peoples;
+		uint localc;
+		uint country;
+		uint region;
+		/* Geomerty point */
+	}
+	Town[] towns;
+	towns = handleRow!(r => r.deserialize!Town)(test_db.pages[test_db.getRootPageOf2("Towns")], test_db.pages);
+	foreach(town;towns) {
+		//writeln(town);
+	}
+
+
 //	if (db !is null) {
 	//	writeln("it appears to be a database");
 		import std.datetime;
@@ -115,8 +131,7 @@ int main(string[] args) {
 			auto x = result.length;
 			foreach(row;(db4).getRowsOf1("Album")) {
 				result = row.colums(1).getAs!string;
-			//	writeln(result);
-			}
+			} 
 			sw.stop();
 		}
 
