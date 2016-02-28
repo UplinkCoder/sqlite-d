@@ -129,13 +129,11 @@ void handleRow(alias rowHandler, RR)(const Database.BTreePage page,
 				static if (is(hrt)) {
 					static if (nullReturnHandler) {
 						rowHandler(page.getRow(cp, pages));
-						break;
 					} else {
 						static if (is (RR == defaultReturnRangeType)) {
 							returnRange ~= rowHandler(page.getRow(cp, pages));
 						} else {
 							returnRange.put(rowHandler(page.getRow(cp, pages)));
-							break;
 						}
 
 					}
