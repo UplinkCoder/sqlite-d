@@ -266,11 +266,12 @@ struct Database {
 		auto data = cast(ubyte[]) read(filename);
 		this(data, filename);
 	}
-
-	this(const ubyte[] buffer = null, string filename = ":Memory:") pure {
+	/// If you pass null as buffer a new one will be gc-allocated;
+	this(const ubyte[] buffer, string filename = ":Memory:") pure {
 		if (buffer is null) {
-			ubyte[] myBuffer;
+			ubyte[] myBuffer = new ubyte[](1024);
 			data = myBuffer;
+			///TODO write a suitable default header here.
 		} else {
 			data = cast(ubyte[])buffer;
 		}
