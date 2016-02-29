@@ -24,9 +24,8 @@ struct Table {
 	alias rootPage this;
 
 	int opApply(int delegate(const Database.Row r) dg) {
-		static uint ctr;
-		handleRow!dg(this);
-		return ctr++;
+		handleRowDg!dg(this);
+		return 0;
 	}
 }
 
@@ -128,6 +127,10 @@ static assert (is(pageHandlerRetrunType!((page, pages) => page)));
 
 auto handleRow(alias RowHandler)(const Table table) {
 	return handleRow!(RowHandler)(table.pages[cast(uint)table.rootPage], table.pages);
+}
+int handleRowDg(alias dg)(const Table table) {
+	handleRow!((r) {dg(r);})(table);
+	return 0;
 }
 
 RR handleRow(alias rowHandler, RR = rowHandlerReturnType!(rowHandler)[])(const Database.BTreePage page,
