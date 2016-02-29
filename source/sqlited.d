@@ -279,6 +279,7 @@ struct Database {
 		_cachedHeader = SQLiteHeader.fromArray(buffer); 
 		assert(_cachedHeader.magicString[0..6] == "SQLite");
 	}
+
 	/**
 	 * CREATE TABLE sqlite_master(
 	 *	type text,
@@ -847,11 +848,12 @@ static Database.Payload extractPayload(const ubyte[] startPayload,
 			p.int64 = *cast(BigEndian!long*) startPayload;
 			break;
 		case typeof(typeCode).float64:
-			if (!__ctfe)
+			if (!__ctfe) {
 				p.float64 = *cast(double*) startPayload;
-			else
+				assert(0, "Not supported at runtime either it's BigEndian :)");
+			} else
 				assert(0, "not supporeted at CTFE yet");
-			break;
+		//	break;
 		case typeof(typeCode).blob:
 			p.blob = cast(ubyte[]) startPayload[0 .. cast(uint) typeCode.length];
 			break;
