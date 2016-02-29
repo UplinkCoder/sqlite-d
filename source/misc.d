@@ -22,6 +22,12 @@ struct Table {
 	const Database.PageRange pages;
 	const RootPage rootPage;
 	alias rootPage this;
+
+	int opApply(int delegate(const Database.Row r) dg) {
+		static uint ctr;
+		handleRow!dg(this);
+		return ctr++;
+	}
 }
 
 Table table(const Database db, in string tableName) pure {
@@ -120,8 +126,8 @@ template pageHandlerRetrunType(alias pageHandler) {
 }
 static assert (is(pageHandlerRetrunType!((page, pages) => page)));
 
-auto handleRow(alias RowHandler)(const RootPage rootPage, const Database.PageRange pages) {
-	return handleRow!(RowHandler)(pages[cast(uint)rootPage], pages);
+auto handleRow(alias RowHandler)(const Table table) {
+	return handleRow!(RowHandler)(table.pages[cast(uint)table.rootPage], table.pages);
 }
 
 RR handleRow(alias rowHandler, RR = rowHandlerReturnType!(rowHandler)[])(const Database.BTreePage page,

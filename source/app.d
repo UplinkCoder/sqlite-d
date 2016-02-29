@@ -113,7 +113,7 @@ int main(string[] args) {
 		/* Geomerty point */
 	}
 	Town[] towns;
-	towns = handleRow!(r => r.deserialize!Town)(test_db.pages[test_db.getRootPageOf2("Towns")], test_db.pages);
+	towns = handleRow!(r => r.deserialize!Town)(test_db.table("Towns"));
 
 	foreach(town;towns) {
 		//writeln(town);
@@ -130,13 +130,14 @@ int main(string[] args) {
 		
 			sw.start;
 			auto x = result.length;
-			foreach(row;(db4).getRowsOf1("Album")) {
+			foreach(row;(db4).table("Album")) {
 			//	writeln(row.colums(1).getAs!string);
 			} 
 			sw.stop();
 		}
 
 		writeln("Getting all entries of colum 1 in table Album ", times, " times took ", sw.peek().msecs, "msecs");
+//	writeln(db4.table("Artist"));
 //	foreach(_;0..32) {
 //		writeln(comparingBenchmark!((){test_db.getRootPageOf1("Towns");},(){test_db.getRootPageOf2("Towns");},4096).point);
 //	}
