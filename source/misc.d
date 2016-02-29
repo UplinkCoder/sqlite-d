@@ -27,6 +27,16 @@ struct Table {
 		handleRowDg!dg(this);
 		return 0;
 	}
+
+	struct_type[] deserialize(struct_type)() if (is(struct_type == struct)) {
+		struct_type[] result;
+		foreach(row;this) {
+			result ~= row.deserialize!struct_type;
+		}
+		return result;
+	}
+
+
 }
 
 Table table(const Database db, in string tableName) pure {
@@ -180,16 +190,9 @@ void handleRow(alias rowHandler, RR)(const Database.BTreePage page,
 		
 
 		case tableInteriorPage: {
-		/*	if (noReturn && isPure && !__ctfe) {
-				import std.parallelism;
-				foreach(cp;parallel(cpa)) {
-					handleRow!rowHandler(pages[BigEndian!uint(page.page[cp .. cp + uint.sizeof]) - 1], pages, returnRange);
-				}
-			} else { */ 
-				foreach(cp;cpa) {
-					handleRow!rowHandler(pages[BigEndian!uint(page.page[cp .. cp + uint.sizeof]) - 1], pages, returnRange);
-				}
-	//		}
+			foreach(cp;cpa) {
+				handleRow!rowHandler(pages[BigEndian!uint(page.page[cp .. cp + uint.sizeof]) - 1], pages, returnRange);
+			}
 
 			handleRow!rowHandler(pages[page.header._rightmostPointer - 1], pages, returnRange);
 
