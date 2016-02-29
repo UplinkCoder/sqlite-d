@@ -23,7 +23,7 @@ struct BigEndian(T) {
 		static if (is(T.isBigEndian)) {
 			this.asNative = val.asNative;
 		} else {
-			this.asNative = val;
+			this.asNative = swapIfNeeded(val);
 		}
 	}
 
@@ -91,7 +91,7 @@ struct BigEndian(T) {
 	}
 }
 
-auto bigEndian(T)(T val) {
+auto bigEndian(T)(T val) pure {
 	static if (is(T.isBigEndian)) {
 		return BigEndian!(typeof(val.asNative))(val.asNative);
 	} else {
