@@ -135,8 +135,8 @@ struct VarInt {
 	static assert(VarInt((cast(ubyte[])[0x82,0x00])).toBeLong == 0x0100); // should be 0x0100
 	static assert(_length((cast(ubyte[])[0x82,0x80,0x00])) == 3);
 	static assert(VarInt((cast(ubyte[])[0x84,0x60,0x00])).toBeLong == 608);
-	pragma(msg, VarInt(bigEndian!long(265)).byteArray);
-//	static assert(VarInt(bigEndian!long(6421)).toBeLong == 6421);
+	static assert(VarInt(bigEndian!long(265)).toBeLong == 265);
+	static assert(VarInt(bigEndian!long(6421)).toBeLong == 6421);
 	//static assert (VarInt().lengthInVarInt(608) == 2);
 	static assert(VarInt((cast(ubyte[])[0x81,0x82,0x83,0x84,0x85,0x86,0x87,0x88,0x89])).toBeLong != 0);
 }
