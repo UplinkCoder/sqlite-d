@@ -21,7 +21,6 @@ alias RootPage = Typedef!(uint,uint.init,"rootPage");
 struct Table {
 	const Database.PageRange pages;
 	const RootPage rootPage;
-	alias rootPage this;
 
 	int opApply(int delegate(const Database.Row r) dg) {
 		handleRowDg!dg(this);
