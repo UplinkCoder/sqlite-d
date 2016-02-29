@@ -4,7 +4,7 @@ import sqlited;
 import utils;
 import std.traits;
 
-struct_type deserialize(struct_type)(Database.Row r) {
+struct_type deserialize(struct_type)(Database.Row r) if (is(struct_type == struct)) {
 	struct_type instance;
 	uint ctr;
 	foreach (member; __traits(derivedMembers, struct_type)) {
@@ -15,6 +15,30 @@ struct_type deserialize(struct_type)(Database.Row r) {
 	}
 	return instance;
 }
+
+import std.typecons;
+alias RootPage = Typedef!(uint,uint.init,"rootPage");
+struct Table {
+	const Database.PageRange pages;
+	const RootPage rootPage;
+	alias rootPage this;
+}
+
+Table table(const Database db, in string tableName) pure {
+	RootPage rootPage;
+
+	handleRow!(
+		(r) {
+		if (r.colums(0).getAs!string == "table" && 
+			r.colums(1).getAs!string == tableName) {
+			rootPage = r.colums(3).getAs!uint - 1;
+		}
+	})(db.pages[0], db.pages);
+		
+		
+	return Table(db.pages, rootPage);
+}
+
 
 /// usage : table.select("name","surname").where!("age","sex", (age, sex) => sex.as!Sex == Sex.female, age.as!uint < 40))
 /// or table.select("name").where!((type) => type.as!string == "table")("type").as!string;
@@ -95,6 +119,10 @@ template pageHandlerRetrunType(alias pageHandler) {
 	}
 }
 static assert (is(pageHandlerRetrunType!((page, pages) => page)));
+
+auto handleRow(alias RowHandler)(const RootPage rootPage, const Database.PageRange pages) {
+	return handleRow!(RowHandler)(pages[cast(uint)rootPage], pages);
+}
 
 RR handleRow(alias rowHandler, RR = rowHandlerReturnType!(rowHandler)[])(const Database.BTreePage page,
 	const Database.PageRange pages) {
