@@ -12,6 +12,8 @@ alias lengthType = uint;
 pure :
 auto getDelim(char c) {
 	switch(c) {
+		case '"' :
+			return '"';
 		case '[' :
 			return ']';
 		case '`' : 
@@ -22,87 +24,139 @@ auto getDelim(char c) {
 			return ' ';
 	}
 }
+struct TableInfo {
+	ColumInfo[] columInfos;
+	string tableName;
 
-import std.algorithm;
-auto skipWhiteSpace(string _string) {
-	static struct Result {
-		string result;
-		uint length;
+	this(string tableName, ColumInfo[] columInfos) pure {
+		this.tableName = tableName;
+		this.columInfos = columInfos;
 	}
-
-	Result result;
+}
+import std.algorithm;
+void skipWhiteSpace(string _string, uint* pos) {
 
 	import std.ascii : isWhite;
-	while(isWhite(_string[result.length++])) {}
-
-	result.length--;
-	result.result = _string[result.length .. $];
-
-	return result;
+	uint _pos = *pos;
+	while(isWhite(_string[_pos++])) {}
+	*pos = _pos - 1;
 }
 
 
-auto parseCreateTable(string sql) pure {
-	ColumInfo[] colums;
-	sql = sql["CREATE TABLE ".length .. $];
-	auto delim = getDelim(sql[0]);
-	size_t pos = sql[1 .. $].countUntil(delim);
-/*	foreach (i,c;sql) {
-		if (c == delim) {
-			pos = i;
-			break;
-		}
+auto parseCreateTable(const string sql) pure {
+	ColumInfo[] columInfos;
+	uint pos = cast(uint) "CREATE TABLE".length;
+	sql.skipWhiteSpace(&pos);
+
+	auto delim = getDelim(sql[pos]);
+	pos += (delim == ' ' ? 0 : 1);
+	auto strlen = cast(uint)sql[pos .. $].countUntil(delim);
+
+	string tableName = sql[pos .. pos + strlen];
+	pos += strlen + (delim == ' ' ? 0 : 1);
+	sql.skipWhiteSpace(&pos);
+	debug {
+		import std.stdio;
+		writeln("tableName :",tableName);
+		writeln(sql[pos .. $]);
 	}
-*/
-
-	string tableName = sql[1 .. pos];
-	sql = sql[pos .. $];
-
-	pos = sql.countUntil('(');
+	assert(sql[pos] == '(');
+	pos++;
 	while(sql[pos] != ')') {
 		auto res = parseColum(sql[pos .. $]);
+		columInfos ~= res.colum;
 		pos += res.length;
-		colums ~= res.colum;
-	} 
+		pos += (sql[pos] == ',' ? 1 : 0);
+	}
 
-	
+	return TableInfo(tableName, columInfos);
 }
 
 struct ColumInfo {
 	string name;
 	string typeName;
 	bool notNull;
-	bool primaryKey;		
+	bool primaryKey;
+	bool unique;
+	bool autoIncrement;
 }
 	
 
-auto parseColum(string sql) pure {
+auto parseColum(const string sql) pure {
+	enum KeywordEnum {
+		_,
+		notNull,
+		primaryKey,
+		// autoincrement,
+		// unique,
+	}
 	struct Result {
 		ColumInfo colum;
 		uint length;
 	}
 	Result result;
 	
-	auto res = sql.skipWhiteSpace();
-	sql = res.result;
-	result.length = res.length;
+	sql.skipWhiteSpace(&result.length);
+	auto delim = getDelim(sql[result.length]);
+	result.length += (delim == ' ' ? 0 : 1);
+	int strlen = cast(int) sql[result.length .. $].countUntil(delim);
+
+	result.colum.name = sql[result.length .. result.length + strlen];
+	result.length += strlen + (delim == ' ' ? 0 : 1);
+	sql.skipWhiteSpace(&result.length);
+
+	delim = getDelim(sql[result.length]);
+	strlen = cast(int) sql[result.length .. $].countUntil(delim,',','\n');
+
+	result.colum.typeName =  sql[result.length .. result.length + strlen];
+	result.length += strlen + (delim == ' ' ? 0 : 1);
+	sql.skipWhiteSpace(&result.length);
+
+
+	debug {
+		import std.stdio;
+		if (!__ctfe) {
+				writeln("Before while:" ,result.colum , sql[result.length .. $]);
+		}
+	}
+	while (sql[result.length] != ',' && sql[result.length] != ')') {
+		import std.ascii;
+		if (auto kw = cast(KeywordEnum)sql[result.length .. $].map!(c => toUpper(c)).startsWith("NOT NULL","PRIMARY KEY")) {
+			final switch (kw) with(KeywordEnum) {
+				case _ : assert(0); // cannot ever happen
+				case notNull :
+					assert(result.colum.notNull == false);
+					result.colum.notNull = true;
+					result.length += "NOT NULL".length;
+					break;
+				case primaryKey :
+					assert(result.colum.primaryKey == false);
+					result.colum.primaryKey = true;
+					result.length += "PRIMARY KEY".length;
+					break;
+			}
+			sql.skipWhiteSpace(&result.length);
+			debug {
+				import std.stdio;
+				if (!__ctfe) {
+				//	writeln(result);
+				}
+			}
+			continue ;
+		} else {
+			debug {
+				import std.stdio;
+				if (!__ctfe) {
+					writeln(result);
+					writeln(sql[result.length .. $]);
+				}
+			}
+			assert(0, "Unhandeled Keyword or something");
+		}
 	
-	auto delim = getDelim(sql[0]);
-	size_t pos = sql.countUntil(delim);
-	bool whitespaceDelim = (delim == ' ') ;
 
-	result.colum.name = (whitespaceDelim ? sql[0 .. pos+1] : sql[1 .. pos]);
-	result.length += pos + !whitespaceDelim;
-	sql = sql[pos + !whitespaceDelim  .. $];
+	}
 
-	res = sql.skipWhiteSpace();
-	sql = res.result;
-	result.length += res.length;
-	
-	pos = sql.countUntil(' ');
-	result.colum.typeName = sql[0 .. pos];
-
-	result.length += pos;
 
 	return result;
 
