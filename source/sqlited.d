@@ -352,59 +352,26 @@ struct Database {
 			const ubyte[] payloadStart;
 
 			import std.traits : allSatisfy;
-			auto colums (T...)(T colNums) pure const if (allSatisfy!(a => (is(a : const int), T))) {
+			auto colum(const uint colNum) pure const {
 				auto payloadHeader = PayloadHeader(payloadHeaderBytes);
 				uint offset;
-				uint lastCol;
-				static assert (T.length != 0, "extractPayload needs at least one argument");
-				
-				import std.algorithm : min, max, isSorted;
-				//assert(typeCodes.length > max(colNums, 0));
-				static if (T.length > 1) {
-					pragma(msg, "using colums to fetch multiple colums at once is probably bad for your perf.\n"
-						"please try using multiple singe-argument calls to colums.")
-					assert(isSorted([colNums]));
+
+				foreach(_; 0 .. colNum) {
+					offset += payloadHeader.front().length;
+					payloadHeader.popFront();
 				}
 
-				static if (T.length > 1) {
-					Payload[T.length] result;
-				}
+				auto typeCode = payloadHeader.front();
+				uint payloadEnd = cast(uint) (offset + typeCode.length);
 				
-				
-				foreach (n,colNum;colNums) {
-					foreach(i; lastCol .. colNum) {
-						offset += payloadHeader.front().length;
-						payloadHeader.popFront();
-					}
-
-					auto typeCode = payloadHeader.front();
-					uint payloadEnd = cast(uint) (offset + typeCode.length);
-					
-					if (payloadStart.length > payloadEnd) {
-						static if (T.length == 1) {
-							return extractPayload(payloadStart[offset .. payloadEnd], typeCode);
-						} else {
-							result[n] = extractPayload(payloadStart[offset .. payloadEnd], typeCode);
-						}
-					} else {
-						auto overflowInfo = OverflowInfo(payloadStart, offset, payloadSize, pages, payloadHeaderSize);
-						static if (T.length == 1) {
-							return extractPayload(&overflowInfo, typeCode, pages);
-						} else {
-							result[n] = extractPayload(&overflowInfo, typeCode, pages);
-						}
-					}
-
-					static if (T.length > 1) {
-						lastCol = colNum;
-					}
-				}
-				static if (T.length > 1) {
-					return result;
+				if (payloadStart.length > payloadEnd) {
+					return extractPayload(payloadStart[offset .. payloadEnd], typeCode);
 				} else {
-					assert(0);
+					auto overflowInfo = OverflowInfo(payloadStart, offset, payloadSize, pages, payloadHeaderSize);
+					return extractPayload(&overflowInfo, typeCode, pages);
 				}
 			}
+
 		}
 
 
@@ -955,7 +922,7 @@ auto getAs(T)(Database.Payload p) {
 }
 
 auto getAs(T)(Database.Row r, uint columIndex) {
-	return r.colums(columIndex).getAs!T();
+	return r.colum(columIndex).getAs!T();
 }
 
 auto getAs(T)(Database.Row r, Database.TableSchema s, string colName) {

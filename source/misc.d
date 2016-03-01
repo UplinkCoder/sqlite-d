@@ -43,9 +43,9 @@ Table table(const Database db, in string tableName) pure {
 
 	handleRow!(
 		(r) {
-		if (r.colums(0).getAs!string == "table" && 
-			r.colums(1).getAs!string == tableName) {
-			rootPage = r.colums(3).getAs!uint - 1;
+		if (r.colum(0).getAs!string == "table" && 
+			r.colum(1).getAs!string == tableName) {
+			rootPage = r.colum(3).getAs!uint - 1;
 		}
 	})(db.pages[0], db.pages);
 		

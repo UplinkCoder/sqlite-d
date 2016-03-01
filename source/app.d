@@ -14,20 +14,27 @@ static immutable db4 = cast(immutable) Database(cast(ubyte[]) import("test4.s3db
 
 
 int main(string[] args) {
-//	import std.stdio;
-//	string filename = (args.length > 1 ? args[1] : "example/test4.s3db");
-//	auto pageNr = (args.length > 2 ? parse!(int)(args[2]) : 0);
-//	writefln("opening file %s", filename); 
-//	auto db = new Database(filename);
+	import std.stdio;
+	string filename = (args.length > 1 ? args[1] : "views/test4.s3db");
+	auto pageNr = (args.length > 2 ? parse!(int)(args[2]) : 0);
+	writefln("opening file %s", filename); 
+	auto db = new Database(filename);
 
 	Database.MasterTableSchema[] schemas;
 
 	auto test_db = Database("views/test-2.3.sqlite");
-	schemas = handleRow!(r => r.deserialize!(Database.MasterTableSchema))(test_db.rootPage, test_db.pages);
-	foreach(schema;schemas) {
-		writeln(schema);
-	}
-
+	schemas = handleRow!(r => r.deserialize!(Database.MasterTableSchema))(db.rootPage, db.pages);
+//	if (pageNr) {
+//		foreach(row;Table(db.pages, cast(RootPage)pageNr)) {
+//			foreach(col;row.colums) {
+//				col.apply!(c => writeln(c));
+//			}
+//		}
+//	} else {
+		foreach(schema;schemas) {
+			writeln(schema);
+		}
+//	}
 	struct Town {
 		uint PK_UID;
 		string name;
@@ -41,7 +48,7 @@ int main(string[] args) {
 	towns = handleRow!(r => r.deserialize!Town)(test_db.table("Towns"));
 
 	foreach(town;towns) {
-		writeln(town);
+	//	writeln(town);
 	}
 
 
@@ -57,7 +64,7 @@ int main(string[] args) {
 			sw.start;
 			foreach(row;(db4).table("Album")) {
 			x++;
-				row.colums(1).getAs!string;
+				row.colum(1).getAs!string;
 			} 
 			sw.stop();
 		}
