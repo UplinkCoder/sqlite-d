@@ -57,8 +57,8 @@ auto parseCreateTable(const string sql) pure {
 	sql.skipWhiteSpace(&pos);
 	debug {
 		import std.stdio;
-		writeln("tableName :",tableName);
-		writeln(sql[pos .. $]);
+	//	writeln("tableName :",tableName);
+	//	writeln(sql[pos .. $]);
 	}
 	assert(sql[pos] == '(');
 	pos++;
