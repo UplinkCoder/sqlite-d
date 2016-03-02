@@ -83,31 +83,6 @@ struct VarInt {
 		import std.conv;
 		assert(0, "We should never get here");
 	}
-	/+
-	 non-functional right now :/
-	static void toVarint(long val) {
-		union U {
-			BigEndian!long beval;
-			ubyte[long.sizeof] _arr;
-		}
-		U u;
-		uint ctr;
-		ubyte[9] varIntStorage;
-
-		u.beval = val;
-		uint VarIntLength; 
-		for (;;) {
-			// safe the first 7 bits 
-			varIntStorage[ctr] = u._arr[ctr] & (~0x7f); 
-			// if the 8th bit is set in
-			if (u._arr[ctr] & 7f) {
-
-				continue;
-			} else {
-				break ;
-			}
-		}
-	}+/
 
 	@property uint length ()  {
 		return _length(byteArray);
