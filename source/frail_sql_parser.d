@@ -78,7 +78,7 @@ struct ColumInfo {
 	bool notNull;
 	bool primaryKey;
 	bool unique;
-	bool autoIncrement;
+	bool autoincrement;
 }
 	
 
@@ -87,7 +87,7 @@ auto parseColum(const string sql) pure {
 		_,
 		notNull,
 		primaryKey,
-		// autoincrement,
+		autoincrement,
 		// unique,
 	}
 	struct Result {
@@ -106,7 +106,7 @@ auto parseColum(const string sql) pure {
 	sql.skipWhiteSpace(&result.length);
 
 	delim = getDelim(sql[result.length]);
-	strlen = cast(int) sql[result.length .. $].countUntil(delim,',','\n');
+	strlen = cast(int) sql[result.length .. $].countUntil(delim,',','\n',')');
 
 	result.colum.typeName =  sql[result.length .. result.length + strlen];
 	result.length += strlen + (delim == ' ' ? 0 : 1);
@@ -121,7 +121,7 @@ auto parseColum(const string sql) pure {
 	}
 	while (sql[result.length] != ',' && sql[result.length] != ')') {
 		import std.ascii;
-		if (auto kw = cast(KeywordEnum)sql[result.length .. $].map!(c => toUpper(c)).startsWith("NOT NULL","PRIMARY KEY")) {
+		if (auto kw = cast(KeywordEnum)sql[result.length .. $].map!(c => toUpper(c)).startsWith("NOT NULL","PRIMARY KEY","AUTOINCREMENT")) {
 			final switch (kw) with(KeywordEnum) {
 				case _ : assert(0); // cannot ever happen
 				case notNull :
@@ -133,6 +133,11 @@ auto parseColum(const string sql) pure {
 					assert(result.colum.primaryKey == false);
 					result.colum.primaryKey = true;
 					result.length += "PRIMARY KEY".length;
+					break;
+				case autoincrement :
+					assert(result.colum.autoincrement == false);
+					result.colum.autoincrement = true;
+					result.length += "AUTOINCREMENT".length;
 					break;
 			}
 			sql.skipWhiteSpace(&result.length);
