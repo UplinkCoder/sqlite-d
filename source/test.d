@@ -20,7 +20,7 @@ q{CREATE TABLE spatial_ref_sys (
 		auth_srid INTEGER NOT NULL,
 		ref_sys_name VARCHAR(256),
 		proj4text VARCHAR(2048) NOT NULL)}
-	) != TableInfo("spatial_ref_sys", [
+	) == TableInfo("spatial_ref_sys", [
 			ColumInfo("srid", "INTEGER", true, true),
 			ColumInfo("auth_name", "VARCHAR(256)", true),
 			ColumInfo("auth_srid", "INTEGER", true),
@@ -29,6 +29,7 @@ q{CREATE TABLE spatial_ref_sys (
 		])
 );
 static assert(parseCreateTable(long_create_table) != TableInfo.init);
+/+
 static assert(parseCreateTable(
 q{CREATE TABLE Towns (
 				PK_UID INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -39,3 +40,4 @@ q{CREATE TABLE Towns (
 				Region INTEGER, "Geometry" POINT)
 }
 ) != TableInfo.init);
++/

@@ -106,7 +106,10 @@ auto parseColum(const string sql) pure {
 	sql.skipWhiteSpace(&result.length);
 
 	delim = getDelim(sql[result.length]);
-	strlen = cast(int) sql[result.length .. $].countUntil(delim,',','\n',')');
+	/+ TODO do something about the case where ')' is the delimiter 
+			auto lastParen = cast(int)sql.reverse.countUntil(')')
+	+/
+	strlen = cast(int) sql[result.length .. $].countUntil(delim,',','\n');
 
 	result.colum.typeName =  sql[result.length .. result.length + strlen];
 	result.length += strlen + (delim == ' ' ? 0 : 1);
