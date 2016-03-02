@@ -38,7 +38,7 @@ void skipWhiteSpace(string _string, uint* pos) {
 
 	import std.ascii : isWhite;
 	uint _pos = *pos;
-	while(isWhite(_string[_pos++])) {}
+	while(isWhite(_string[_pos++]) && _pos < _string.length) {}
 	*pos = _pos - 1;
 }
 
