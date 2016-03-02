@@ -107,15 +107,20 @@ auto parseColum(const string sql) pure {
 
 	delim = getDelim(sql[result.length]);
 	strlen = cast(int) sql[result.length .. $].countUntil(delim,',','\n');
-	/+
-	TODO make the ')' work as final delimiter;
+
+	//TODO make the ')' work as final delimiter;
+	// because this is still a nasty hack!
+	// a nasty nasty HACK!!!
+	//so if I would eat the the final ')' truncate the strlen before the final ')'
 	import std.range : retro;
 	auto lastParen = cast(int)sql.retro.countUntil(')');
-	bool isNotPartOfType = (sql.length - result.length - strlen == lastParen - 1);  
-	if (isNotPartOfType) {
-		strlen--;
+	if (sql.length - result.length - strlen <= lastParen) {
+		strlen -= 1;
 	}
-	+/
+	// the code above is a nasty nasty nasty HACK!!!
+
+
+
 
 
 	result.colum.typeName =  sql[result.length .. result.length + strlen];

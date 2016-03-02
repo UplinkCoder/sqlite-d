@@ -29,7 +29,7 @@ q{CREATE TABLE spatial_ref_sys (
 		])
 );
 static assert(parseCreateTable(long_create_table) != TableInfo.init);
-/+
+
 static assert(parseCreateTable(
 q{CREATE TABLE Towns (
 				PK_UID INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -40,4 +40,3 @@ q{CREATE TABLE Towns (
 				Region INTEGER, "Geometry" POINT)
 }
 ) != TableInfo.init);
-+/
