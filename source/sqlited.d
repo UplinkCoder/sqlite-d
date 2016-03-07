@@ -12,6 +12,10 @@ struct Database {
 	string dbFilename;
 	const ubyte[] data;
 	alias Row = BTreePage.Row;
+	
+	bool opEquals(const Database db) {
+		return data.ptr == db.data.ptr;
+	}
 
 	SQLiteHeader _cachedHeader;
 
@@ -39,6 +43,10 @@ struct Database {
 
 		const uint numberOfPages;
 	pure :
+		bool opEquals(const Database db) {
+			return data.ptr == db.data.ptr;
+		}
+
 		@property uint length() const {
 			return numberOfPages;
 		}
@@ -66,9 +74,13 @@ struct Database {
 
 	}
 
-	static struct Payload {
+	static struct Payload {		
 		alias SerialTypeCodeEnum = SerialTypeCode.SerialTypeCodeEnum;
 		static struct SerialTypeCode {
+			@disable bool opEquals(const typeof(this) _) {
+				return false;
+			}
+
 			alias SerialTypeCodeEnum this;
 
 			static enum SerialTypeCodeEnum : long {
@@ -160,12 +172,11 @@ struct Database {
 		alias type = typeCode.type;
 	}
 
-	static struct Table {
-		TableSchema schema;
-	//	Row[] rows;
-	}
-
 	static align(1) struct SQLiteHeader {
+
+		@disable bool opEquals(const typeof(this) _) {
+			return false;
+		}
 
 		bool isValid() pure {
 			return magicString == "SQLite format 3\0";
@@ -193,6 +204,9 @@ struct Database {
 			}
 
 			struct Freelist {
+				@disable bool opEquals(const typeof(this) _) {
+					return false;
+				}
 				BigEndian!uint nextPage;
 				BigEndian!uint leafPointers; // Number if leafPoinrers;
 			}
@@ -291,6 +305,10 @@ struct Database {
 	 *	 
 	 */
 	static struct MasterTableSchema {
+
+		@disable bool opEquals(const typeof(this) _) {
+			return false;
+		}
 		string type;
 		string name;
 		string tbl_name;
@@ -299,6 +317,10 @@ struct Database {
 	}
 
 	static struct TableSchema {
+
+		@disable bool opEquals(const typeof(this) _) {
+			return false;
+		}
 		static struct SchemaEntry {
 			//	uint colNumber;
 			string columNmae;
@@ -312,6 +334,9 @@ struct Database {
 
 
 	static struct BTreePage {
+		@disable bool opEquals(const typeof(this) _) {
+			return false;
+		}
 		const ubyte[] page;
 		const uint headerOffset; 
 
@@ -529,6 +554,9 @@ struct Database {
 		//		}
 
 		static align(1) struct BTreePageHeader {
+			@disable bool opEquals(const typeof(this) _) {
+				return false;
+			}
 		align(1):
 			//	pure :
 			enum BTreePageType : ubyte {
@@ -661,6 +689,10 @@ struct Database {
 		}
 
 		struct PayloadHeader {
+			@disable bool opEquals(const typeof(this) _) {
+				return false;
+			}
+
 			const ubyte[] payloadHeader;
 			uint offset;
 			uint _length;
@@ -688,6 +720,10 @@ struct Database {
 
 
 struct OverflowInfo {
+	@disable bool opEquals(const typeof(this) _) {
+		return false;
+	}
+
 	const(ubyte)[] pageSlice;
 	uint nextPageIdx;
 
