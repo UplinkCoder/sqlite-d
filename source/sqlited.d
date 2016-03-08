@@ -734,11 +734,8 @@ struct OverflowInfo {
 			auto m = ((pages.usablePageSize - 12) * 32 / 255) - 23;
 			auto x1 = cast(uint) m + ((payloadSize - m) % (pages.usablePageSize - 4));
 
-			auto payloadOnFirstPage = min(pages.usablePageSize - 35, x1) - payloadHeaderSize;
-			debug {
-				import std.stdio;
-				if (!__ctfe) writeln("payloadOnFirstPage: ",payloadOnFirstPage, " payloadStart.length: ",payloadStart.length);
-			}
+			auto payloadOnFirstPage = (x1 < pages.usablePageSize - 35 ? x1 : m) - payloadHeaderSize;
+
 			nextPageIdx = BigEndian!uint(payloadStart[payloadOnFirstPage .. payloadOnFirstPage + uint.sizeof]);
 		
 			if(offset > payloadOnFirstPage) {
