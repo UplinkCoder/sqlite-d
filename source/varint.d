@@ -2,30 +2,21 @@ module varint;
 import utils;
 
 
-/+string varintLengthCheck(uint maxLen) {
-	string result;
-	foreach(i;0..maxLen) {
-		result ~= "if "
-	}
-	
-}+/
-
 struct VarInt {
-	pure nothrow @safe :
+	pure nothrow @safe @nogc :
 	this(BigEndian!long value) {
 		auto len = lengthInVarInt(value);
-		auto tmp = new ubyte[](len);
+		ubyte[9] tmp;
 		ulong beValue = value.asBigEndian;
-
+		
 		while(len--) {
 			tmp[len] = (beValue & 0x7f) | 0x80;
 			beValue >>= 7;
 		}
-		tmp[$-1] &= 0x7f;
+		tmp[lengthInVarInt(value)-1] &= 0x7f;
 		byteArray = tmp;
 	}
 
-	@nogc :
 	const ubyte[] byteArray;
 
 	alias toBeLong this;
