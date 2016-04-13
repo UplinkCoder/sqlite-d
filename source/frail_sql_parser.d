@@ -119,10 +119,6 @@ auto parseColum(const string sql) pure {
 	}
 	// the code above is a nasty nasty nasty HACK!!!
 
-
-
-
-
 	result.colum.typeName =  sql[result.length .. result.length + strlen];
 	result.length += strlen + (delim == ' ' ? 0 : 1);
 	sql.skipWhiteSpace(&result.length);
@@ -181,4 +177,3 @@ auto parseColum(const string sql) pure {
 	return result;
 
 }
-

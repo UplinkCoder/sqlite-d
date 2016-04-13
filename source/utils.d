@@ -62,7 +62,6 @@ struct BigEndian(T) {
 				enum _2066_cannot_handle_swapEndian = true;
 				static if (_2066_cannot_handle_swapEndian) {
 					static if (U.sizeof == 8) {
-						//optimize this by doing it in two
 						//by calling swapIfNeeded recursivly
 						//on two uint sized halfs and then shift them into place
 						//so the intrinsic that swaps uints can be used
@@ -80,6 +79,7 @@ struct BigEndian(T) {
 						
 						return (swapIfNeeded(cast(uint)(val & 0xffffffff00000000UL >> 32)) | 
 							swapIfNeeded(cast(uint)(val & 0x00000000ffffffffUL)));
+
 					} else static if (U.sizeof == 4) {
 							return ((val & 0x000000ff) << 24) |
 									((val & 0x0000ff00) <<  8) |

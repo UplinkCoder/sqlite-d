@@ -2,6 +2,7 @@
 import sqlited;
 import utils;
 import misc;
+import writer;
 import std.conv;
 import std.stdio;
 import core.memory;
@@ -9,13 +10,13 @@ import core.memory;
 import std.algorithm : map, filter, count;
 import std.range : join, takeOne;
 //import std.typecons : tuple;
-static immutable db4 = cast(immutable) Database(cast(ubyte[]) import("test4.s3db"), "");
+//static immutable db4 = cast(immutable) Database(cast(ubyte[]) import("test4.s3db"), "");
 
 
 
 int main(string[] args) {
 	import std.stdio;
-	string filename = (args.length > 1 ? args[1] : "views/test4.s3db");
+	string filename = (args.length > 1 ? args[1] : "views/test-2.3.sqlite");
 	auto pageNr = (args.length > 2 ? parse!(int)(args[2]) : 0);
 	writefln("opening file %s", filename); 
 	auto db = new Database(filename);
@@ -23,11 +24,14 @@ int main(string[] args) {
 	Database.MasterTableSchema[] schemas;
 
 	auto test_db = Database("views/test-2.3.sqlite");
-	schemas = handleRow!(r => r.deserialize!(Database.MasterTableSchema))(db.rootPage, db.pages);
+	auto rw_db = WriteableDatabase("views/test-2.3.sqlite");
+	auto rw_table = rw_db.table("Towns");
+	writeln(typeid(rw_table));	
+	schemas = readRows!(r => r.deserialize!(Database.MasterTableSchema))(db.rootPage, db.pages);
 //	if (pageNr) {
 //		foreach(row;Table(db.pages, cast(RootPage)pageNr)) {
 //			foreach(col;row.colums) {
-//				col.apply!(c => writeln(c));
+//				col!(c => writeln(c));
 //			}
 //		}
 //	} else {
@@ -45,7 +49,7 @@ int main(string[] args) {
 		/* Geomerty point */
 	}
 	Town[] towns;
-	towns = handleRow!(r => r.deserialize!Town)(test_db.table("Towns"));
+	towns = readRows!(r => r.deserialize!Town)(test_db.table("Towns"));
 
 	foreach(town;towns) {
 	//	writeln(town);
@@ -62,10 +66,10 @@ int main(string[] args) {
 			string result;
 		x = 0;
 			sw.start;
-			foreach(row;(db4).table("Album")) {
+			foreach(row;(*db).table("Regions")) {
 			x++;
 				row.colum(1).getAs!string;
-			} 
+			}
 			sw.stop();
 		}
 
