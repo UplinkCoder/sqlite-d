@@ -4,7 +4,6 @@ module sqlited;
  * By Stefan Koch 2016      *
 *****************************/
 
-
 import utils;
 import varint;
 
@@ -12,10 +11,7 @@ struct Database {
 	string dbFilename;
 	const ubyte[] data;
 	alias Row = BTreePage.Row;
-	
-	bool opEquals(const Database db) {
-		return data.ptr == db.data.ptr;
-	}
+	alias BTreePageType = BTreePage.BTreePageType;
 
 	SQLiteHeader _cachedHeader;
 
@@ -43,10 +39,6 @@ struct Database {
 
 		const uint numberOfPages;
 	pure :
-		bool opEquals(const Database db) {
-			return data.ptr == db.data.ptr;
-		}
-
 		@property uint length() const {
 			return numberOfPages;
 		}
@@ -74,13 +66,9 @@ struct Database {
 
 	}
 
-	static struct Payload {		
+	static struct Payload {
 		alias SerialTypeCodeEnum = SerialTypeCode.SerialTypeCodeEnum;
 		static struct SerialTypeCode {
-			@disable bool opEquals(const typeof(this) _) {
-				return false;
-			}
-
 			alias SerialTypeCodeEnum this;
 
 			static enum SerialTypeCodeEnum : long {
@@ -172,11 +160,12 @@ struct Database {
 		alias type = typeCode.type;
 	}
 
-	static align(1) struct SQLiteHeader {
+	static struct Table {
+		TableSchema schema;
+	//	Row[] rows;
+	}
 
-		@disable bool opEquals(const typeof(this) _) {
-			return false;
-		}
+	static align(1) struct SQLiteHeader {
 
 		bool isValid() pure {
 			return magicString == "SQLite format 3\0";
@@ -204,9 +193,6 @@ struct Database {
 			}
 
 			struct Freelist {
-				@disable bool opEquals(const typeof(this) _) {
-					return false;
-				}
 				BigEndian!uint nextPage;
 				BigEndian!uint leafPointers; // Number if leafPoinrers;
 			}
@@ -305,10 +291,6 @@ struct Database {
 	 *	 
 	 */
 	static struct MasterTableSchema {
-
-		@disable bool opEquals(const typeof(this) _) {
-			return false;
-		}
 		string type;
 		string name;
 		string tbl_name;
@@ -317,10 +299,6 @@ struct Database {
 	}
 
 	static struct TableSchema {
-
-		@disable bool opEquals(const typeof(this) _) {
-			return false;
-		}
 		static struct SchemaEntry {
 			//	uint colNumber;
 			string columNmae;
@@ -334,39 +312,18 @@ struct Database {
 
 
 	static struct BTreePage {
-		@disable bool opEquals(const typeof(this) _) {
-			return false;
+	
+		enum BTreePageType : ubyte {
+			emptyPage = 0,
+			indexInteriorPage = 2,
+			tableInteriorPage = 5,
+			indexLeafPage = 10,
+			tableLeafPage = 13
 		}
+
+	
 		const ubyte[] page;
 		const uint headerOffset; 
-
-//		uint payloadOnPage(const uint payloadSize) const pure {
-//			auto m = ((page.length - 12) * 32 / 255) - 23;
-//			import std.algorithm : min;
-//			auto x1 = cast(uint) m + ((payloadSize - m) % (page.length - 4));
-//			auto x2 = cast(uint) ((page.length - 12) * 64 / 255) - 23;
-//
-//			debug {
-//				import std.stdio;
-//
-//				writeln("M: ", m);
-//				writeln("payloadSize: ", payloadSize);
-//				writeln("x1: ", x1);
-//			}
-//
-//			final switch (header.pageType) with (typeof(header.pageType)) {
-//				case emptyPage:
-//				case tableInteriorPage:
-//					assert(0, "has no payload");
-//
-//				case tableLeafPage:
-//					return min(cast(uint)page.length - 35, x1);			
-//				case indexInteriorPage:
-//				case indexLeafPage:
-//					return min(x1, x2);
-//
-//			}
-//		}
 
 		static struct Row {
 			const PageRange pages;
@@ -400,15 +357,27 @@ struct Database {
 		}
 
 
-		Row getRow(const ushort cellPointer, const PageRange pages) pure const {
+		Row getRow(const ushort cellPointer, const PageRange pages, const BTreePageType pageType = BTreePageType.tableLeafPage) pure const {
 			uint offset = cellPointer;
 			import std.algorithm : min;
+
+			ulong leftChildPtr;
+			if (pageType == BTreePageType.indexInteriorPage) {
+				VarInt leftChildPtr_v = VarInt(page[offset .. offset + 9]);
+				leftChildPtr = leftChildPtr_v;
+				offset += leftChildPtr_v.length;
+			}
+
 			auto payloadSize = VarInt(page[offset .. offset + 9]);
 			offset += payloadSize.length;
-			
-			auto rowId = VarInt(page[offset .. offset + 9]);
-			offset += rowId.length;
 
+			ulong rowId;
+			if (pageType == BTreePageType.tableLeafPage) {
+				VarInt rowId_v = VarInt(page[offset .. offset + 9]);
+				rowId = rowId_v;
+				offset += rowId_v.length;
+			}
+			
 			auto payloadHeaderSize = VarInt(page[offset .. min(offset + 9, page.length)]);
 			uint _payloadHeaderSize = cast(uint)payloadHeaderSize;
 
@@ -554,19 +523,8 @@ struct Database {
 		//		}
 
 		static align(1) struct BTreePageHeader {
-			@disable bool opEquals(const typeof(this) _) {
-				return false;
-			}
 		align(1):
 			//	pure :
-			enum BTreePageType : ubyte {
-				emptyPage = 0,
-				indexInteriorPage = 2,
-				tableInteriorPage = 5,
-				indexLeafPage = 10,
-				tableLeafPage = 13
-			}
-
 			BTreePageType _pageType;
 			BigEndian!ushort firstFreeBlock;
 			BigEndian!ushort cellsInPage;
@@ -641,8 +599,6 @@ struct Database {
 //			}
 		}
 
-		alias BTreePageType = BTreePage.BTreePageHeader.BTreePageType;
-
 		bool hasPayload() const pure {
 			final switch (pageType) with (BTreePageType) {
 				case emptyPage:
@@ -684,15 +640,11 @@ struct Database {
 				.toArray!(BigEndian!ushort)(header.cellsInPage);
 		}
 
-		BTreePageHeader.BTreePageType pageType() const pure {
+		BTreePageType pageType() const pure {
 			return (header()).pageType;
 		}
 
 		struct PayloadHeader {
-			@disable bool opEquals(const typeof(this) _) {
-				return false;
-			}
-
 			const ubyte[] payloadHeader;
 			uint offset;
 			uint _length;
@@ -718,24 +670,26 @@ struct Database {
 	}
 }
 
-
 struct OverflowInfo {
-	@disable bool opEquals(const typeof(this) _) {
-		return false;
-	}
-
 	const(ubyte)[] pageSlice;
 	uint nextPageIdx;
 
-	this(const ubyte[] payloadStart, int offset, uint payloadSize, const Database.PageRange pages, uint payloadHeaderSize)  pure {
+	this(const ubyte[] payloadStart, int offset, const uint payloadSize, const Database.PageRange pages, const uint payloadHeaderSize, const Database.BTreePageType pageType = Database.BTreePageType.tableLeafPage) pure {
 		import std.algorithm : min;
-
-		if (payloadSize > pages.usablePageSize - 35) {
+		
+		uint x;
+		if (isIndex(pageType)) {
+			x = ((pages.usablePageSize - 12) * 32 / 255) - 23;
+		} else {
+			x = pages.usablePageSize - 35; 
+		}
+		
+		if (payloadSize > x) {
 			auto m = ((pages.usablePageSize - 12) * 32 / 255) - 23;
-			auto x1 = cast(uint) m + ((payloadSize - m) % (pages.usablePageSize - 4));
+			auto k = m + ((payloadSize - m) % (pages.usablePageSize - 4));
 
-			auto payloadOnFirstPage = (x1 < pages.usablePageSize - 35 ? x1 : m) - payloadHeaderSize;
-
+			auto payloadOnFirstPage = (k <= x ? k : m) - payloadHeaderSize;
+	
 			nextPageIdx = BigEndian!uint(payloadStart[payloadOnFirstPage .. payloadOnFirstPage + uint.sizeof]);
 		
 			if(offset > payloadOnFirstPage) {
@@ -753,7 +707,6 @@ struct OverflowInfo {
 		} else {
 			pageSlice = payloadStart;
 		}
-
 		pageSlice = pageSlice[offset .. $];
 	}
 
@@ -762,7 +715,6 @@ struct OverflowInfo {
 		auto nextPage = pages[nextPageIdx - 1];
 		nextPageIdx = BigEndian!uint(nextPage.page[0 .. uint.sizeof]);
 		pageSlice = nextPage.page[uint.sizeof .. $];
-	
 	}
 
 }
@@ -947,7 +899,6 @@ auto apply(alias handler)(const Database.Payload p) {
 			} else {
 				assert(0,"handler " ~ typeof(handler).stringof ~ " cannot be called with string");
 			}
-
 	}
 }
 pure :
@@ -971,3 +922,8 @@ unittest {
 	assert(p.getAs!(int) == 0);
 }
 
+private bool isIndex(const Database.BTreePage.BTreePageType pageType) pure {
+	return ((pageType & 2) ^ 2) == 0; 
+}
+
+static assert(isIndex(Database.BTreePageType.indexLeafPage) && isIndex(Database.BTreePageType.indexInteriorPage) && !isIndex(Database.BTreePageType.tableLeafPage));

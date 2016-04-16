@@ -23,7 +23,7 @@ struct Table {
 	const RootPage rootPage;
 
 	int opApply(int delegate(const Database.Row r) dg) {
-		handleRowDg!dg(this);
+		readRowDg!dg(this);
 		return 0;
 	}
 
@@ -41,7 +41,7 @@ struct Table {
 Table table(const Database db, in string tableName) pure {
 	RootPage rootPage;
 
-	handleRow!(
+	readRows!(
 		(r) {
 		if (r.colum(0).getAs!string == "table" && 
 			r.colum(1).getAs!string == tableName) {
@@ -134,15 +134,15 @@ template pageHandlerRetrunType(alias pageHandler) {
 }
 static assert (is(pageHandlerRetrunType!((page, pages) => page)));
 
-auto handleRow(alias RowHandler)(const Table table) {
-	return handleRow!(RowHandler)(table.pages[cast(uint)table.rootPage], table.pages);
+auto readRows(alias RowHandler)(const Table table) {
+	return readRows!(RowHandler)(table.pages[cast(uint)table.rootPage], table.pages);
 }
-int handleRowDg(alias dg)(const Table table) {
-	handleRow!((r) {dg(r);})(table);
+int readRowDg(alias dg)(const Table table) {
+	readRows!((r) {dg(r);})(table);
 	return 0;
 }
 
-RR handleRow(alias rowHandler, RR = rowHandlerReturnType!(rowHandler)[])(const Database.BTreePage page,
+RR readRows(alias rowHandler, RR = rowHandlerReturnType!(rowHandler)[])(const Database.BTreePage page,
 	const Database.PageRange pages) {
 	RR returnArray;
 	enum noReturn = is(RR == void[]);
@@ -150,13 +150,13 @@ RR handleRow(alias rowHandler, RR = rowHandlerReturnType!(rowHandler)[])(const D
 
 	pragma(msg, isPure);
 //	static assert(isPure);
-	handleRow!rowHandler(page, pages, returnArray);
+	readRows!rowHandler(page, pages, returnArray);
 	return returnArray;
 }
 
 
 /// handlePage is used to itterate over interiorPages transparently
-void handleRow(alias rowHandler, RR)(const Database.BTreePage page,
+void readRows(alias rowHandler,bool writable = false, RR)(const Database.BTreePage page,
 	const Database.PageRange pages,  ref RR returnRange) {
 	alias hrt = rowHandlerReturnType!(rowHandler);
 	alias defaultReturnRangeType = hrt[];
@@ -184,19 +184,18 @@ void handleRow(alias rowHandler, RR)(const Database.BTreePage page,
 					static assert(0, "rowHandler has to be callable with (Row)" ~ typeof(rowHandler).stringof);
 				}
 			}
-		}
-			break;
+		} break;
 		
 
 		case tableInteriorPage: {
 			foreach(cp;cpa) {
-				handleRow!rowHandler(pages[BigEndian!uint(page.page[cp .. cp + uint.sizeof]) - 1], pages, returnRange);
+				readRows!rowHandler(pages[BigEndian!uint(page.page[cp .. cp + uint.sizeof]) - 1], pages, returnRange);
 			}
 
-			handleRow!rowHandler(pages[page.header._rightmostPointer - 1], pages, returnRange);
+			readRows!rowHandler(pages[page.header._rightmostPointer - 1], pages, returnRange);
 
-			break;
-		}
+		} break;
+
 
 		default:
 			assert(0, "indexes are not supported by handle Row nor are empty pages");

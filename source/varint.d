@@ -47,6 +47,7 @@ struct VarInt {
 
 		return result;
 	}
+	
 	this (const ubyte[] _arr) {
 		this.byteArray = _arr;
 	}
@@ -71,7 +72,6 @@ struct VarInt {
 		} else if (value < 1L<<63) {
 			return 8;
 		}
-		import std.conv;
 		assert(0, "We should never get here");
 	}
 

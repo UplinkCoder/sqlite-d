@@ -8,7 +8,7 @@ q{CREATE TABLE `veryveryveryveryveryveryveryveryveryveryveryveryveryveryveryvery
 	`Field2`	INTEGER
 )};
 static immutable test_s3db = cast(immutable)Database(cast(immutable ubyte[]) import("test.s3db"));
-static immutable Database.MasterTableSchema[] schemas = handleRow!(r => r.deserialize!(Database.MasterTableSchema))(test_s3db.rootPage, test_s3db.pages);
+static immutable Database.MasterTableSchema[] schemas = readRows!(r => r.deserialize!(Database.MasterTableSchema))(test_s3db.rootPage, test_s3db.pages);
 static assert(schemas[2].sql==long_create_table);
 
 import frail_sql_parser;
@@ -28,7 +28,7 @@ q{CREATE TABLE spatial_ref_sys (
 			ColumInfo("proj4text","VARCHAR(2048)",true),
 		])
 );
-static assert(parseCreateTable(long_create_table) != TableInfo.init);
+static assert(parseCreateTable(long_create_table) == TableInfo("veryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryverylooooooooooooooooooooooooooooooooooooooooooooooooooooooooooongtttttttttaaaaaaaaaaaaaaaabbbbbbbbbbbbbbbbbbbllllllllllleeeeeeeeeeeeeeeeennnnnnaaaaaaaaaaameeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee", [ColumInfo("vvvvvvvvvveeeeeeeerrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrryyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyylllllllloooooooooooooooooooooooooooonnnnnnnnnnnnnnnngggggggggggggggggggvvvvvvvvvvvvvvvvffffffffffffffffffffiiiiiiiiiiieeeeeeeeeeeeeeeeellllllllllllllddddddddddddddddddddddnnnnnnnnnnnaaaaaaaaaaaaammmmmmmmmmmmmmmmeeeeeeeeeeeeeeeeee", "INTEGER", false, false, false, false), ColumInfo("Field2", "INTEGER", false, false, false, false)]));
 
 static assert(parseCreateTable(
 q{CREATE TABLE Towns (
