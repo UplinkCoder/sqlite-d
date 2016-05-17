@@ -66,9 +66,10 @@ struct BigEndian(T) {
 						//by calling swapIfNeeded recursivly
 						//on two uint sized halfs and then shift them into place
 						//so the intrinsic that swaps uints can be used
-						// DONE! This optimisation was very sucessful!
-						/*
-						return (((cast(uint)val) & 0x00000000000000ffUL) << 56UL) | 
+						//This optimisation had no win whatsoever :(
+						
+						
+						return (((cast(ulong)val) & 0x00000000000000ffUL) << 56UL) | 
 								(((cast(ulong)val) & 0x000000000000ff00UL) << 40UL) | 
 								(((cast(ulong)val) & 0x0000000000ff0000UL) << 24UL) | 
 								(((cast(ulong)val) & 0x00000000ff000000UL) <<  8UL) | 
@@ -76,10 +77,7 @@ struct BigEndian(T) {
 								(((cast(ulong)val) & 0x0000ff0000000000UL) >> 24UL) | 
 								(((cast(ulong)val) & 0x00ff000000000000UL) >> 40UL) | 
 								(((cast(ulong)val) & 0xff00000000000000UL) >> 56UL);
-						*/
 						
-						return (swapIfNeeded(cast(uint)(val & 0xffffffff00000000UL >> 32)) | 
-							swapIfNeeded(cast(uint)(val & 0x00000000ffffffffUL)));
 					} else static if (U.sizeof == 4) {
 							return ((val & 0x000000ff) << 24) |
 									((val & 0x0000ff00) <<  8) |

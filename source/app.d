@@ -6,11 +6,24 @@ import std.conv;
 import std.stdio;
 import core.memory;
 
-import std.algorithm : map, filter, count;
+import std.algorithm : map, filter, count, reduce, each;
 import std.range : join, takeOne;
 //import std.typecons : tuple;
 static immutable db4 = cast(immutable) Database(cast(ubyte[]) import("test4.s3db"), "");
 
+
+void test() {
+	struct test_schema {
+		uint result;
+		string expr;
+	}
+	
+	static immutable tests_db = cast(immutable) Database(cast(ubyte[]) import("hello.db"), "hello");
+	static immutable tests = tests_db.table("hello").deserialize!test_schema;
+	
+	static assert(mixin(tests[0].expr) == tests[0].result);
+	static assert(mixin(tests[1].expr) == tests[1].result);
+}
 
 
 int main(string[] args) {
