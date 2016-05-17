@@ -69,14 +69,15 @@ struct BigEndian(T) {
 						//This optimisation had no win whatsoever :(
 						
 						
-						return (((cast(ulong)val) & 0x00000000000000ffUL) << 56UL) | 
-								(((cast(ulong)val) & 0x000000000000ff00UL) << 40UL) | 
-								(((cast(ulong)val) & 0x0000000000ff0000UL) << 24UL) | 
-								(((cast(ulong)val) & 0x00000000ff000000UL) <<  8UL) | 
-								(((cast(ulong)val) & 0x000000ff00000000UL) >>  8UL) | 
-								(((cast(ulong)val) & 0x0000ff0000000000UL) >> 24UL) | 
-								(((cast(ulong)val) & 0x00ff000000000000UL) >> 40UL) | 
-								(((cast(ulong)val) & 0xff00000000000000UL) >> 56UL);
+						return (((val & 0x00000000000000ffUL) << 56UL) | 
+							((val  & 0x000000000000ff00UL) << 40UL) | 
+							((val  & 0x0000000000ff0000UL) << 24UL) | 
+							((val  & 0x00000000ff000000UL) <<  8UL) | 
+							((val  & 0x000000ff00000000UL) >>  8UL) | 
+							((val  & 0x0000ff0000000000UL) >> 24UL) | 
+							((val  & 0x00ff000000000000UL) >> 40UL) | 
+							((val  & 0xff00000000000000UL) >> 56UL)
+						);
 						
 					} else static if (U.sizeof == 4) {
 							return ((val & 0x000000ff) << 24) |
@@ -97,6 +98,8 @@ struct BigEndian(T) {
 			}
 		}
 	}
+	version(BigEndian) {} else
+	static assert(swapIfNeeded(0xABCD_EF01_2345_6789) == 0x8967_4523_01EF_CDAB);
 }
 
 auto bigEndian(T)(T val) pure {
