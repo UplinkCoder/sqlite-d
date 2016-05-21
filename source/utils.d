@@ -62,13 +62,6 @@ struct BigEndian(T) {
 				enum _2066_cannot_handle_swapEndian = true;
 				static if (_2066_cannot_handle_swapEndian) {
 					static if (U.sizeof == 8) {
-						//optimize this by doing it in two
-						//by calling swapIfNeeded recursivly
-						//on two uint sized halfs and then shift them into place
-						//so the intrinsic that swaps uints can be used
-						//This optimisation had no win whatsoever :(
-						
-						
 						return (((val & 0x00000000000000ffUL) << 56UL) | 
 							((val  & 0x000000000000ff00UL) << 40UL) | 
 							((val  & 0x0000000000ff0000UL) << 24UL) | 
@@ -110,26 +103,6 @@ auto bigEndian(T)(T val) pure {
 	}
 }
 
-
-static struct CArray(TElement) {
-	alias ElementType = TElement;
-	ElementType firstElement;
-	
-	string toString() pure nothrow @nogc {
-		return "please use .toArray(size, pos)";
-	}
-	
-	static ElementType[] toArray(void* arrayPos, long size) pure nothrow @nogc {
-		if (arrayPos != null) {
-			return (cast(ElementType*)arrayPos)[0 .. cast(size_t)size];
-		} else {
-			return [];
-		}
-	}
-	
-	
-}
-
 T[] toArray(T)(const ubyte[] _array, const size_t size) {
 	if (__ctfe) {
 		T[] result;
@@ -157,7 +130,7 @@ T fromArray(T)(const ubyte[] _array) {
 		uint offset;
 		T result;
 		static assert(T.alignof == 1, "Be sure to use this only on align(1) structures!");
-		assert(_array.length >= T.sizeof,"your input array needs to be at least as long as your type.sizeof");
+		assert(_array.length >= T.sizeof, "your input array needs to be at least as long as your type.sizeof");
 
 		///XXX this cucially depends on your type being byte aligned!
 		foreach (member; __traits(derivedMembers, struct_type)) {
