@@ -2,16 +2,14 @@
 import sqlited;
 import utils;
 import misc;
-import writer;
 import std.conv;
 import std.stdio;
 import core.memory;
 
-import std.algorithm : map, filter, count;
+import std.algorithm : map, filter, count, reduce, each;
 import std.range : join, takeOne;
 //import std.typecons : tuple;
-//static immutable db4 = cast(immutable) Database(cast(ubyte[]) import("test4.s3db"), "");
-
+static immutable db4 = cast(immutable) Database(cast(ubyte[]) import("test4.s3db"), "");
 
 
 int main(string[] args) {
@@ -24,9 +22,6 @@ int main(string[] args) {
 	Database.MasterTableSchema[] schemas;
 
 	auto test_db = Database("views/test-2.3.sqlite");
-	auto rw_db = WriteableDatabase("views/test-2.3.sqlite");
-	auto rw_table = rw_db.table("Towns");
-	writeln(typeid(rw_table));	
 	schemas = readRows!(r => r.deserialize!(Database.MasterTableSchema))(db.rootPage, db.pages);
 //	if (pageNr) {
 //		foreach(row;Table(db.pages, cast(RootPage)pageNr)) {
@@ -66,7 +61,7 @@ int main(string[] args) {
 			string result;
 		x = 0;
 			sw.start;
-			foreach(row;(*db).table("Regions")) {
+			foreach(row;(db4).table("Album")) {
 			x++;
 				row.colum(1).getAs!string;
 			}

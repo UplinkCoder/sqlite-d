@@ -62,29 +62,21 @@ struct BigEndian(T) {
 				enum _2066_cannot_handle_swapEndian = true;
 				static if (_2066_cannot_handle_swapEndian) {
 					static if (U.sizeof == 8) {
-						//by calling swapIfNeeded recursivly
-						//on two uint sized halfs and then shift them into place
-						//so the intrinsic that swaps uints can be used
-						// DONE! This optimisation was very sucessful!
-						/*
-						return (((cast(uint)val) & 0x00000000000000ffUL) << 56UL) | 
-								(((cast(ulong)val) & 0x000000000000ff00UL) << 40UL) | 
-								(((cast(ulong)val) & 0x0000000000ff0000UL) << 24UL) | 
-								(((cast(ulong)val) & 0x00000000ff000000UL) <<  8UL) | 
-								(((cast(ulong)val) & 0x000000ff00000000UL) >>  8UL) | 
-								(((cast(ulong)val) & 0x0000ff0000000000UL) >> 24UL) | 
-								(((cast(ulong)val) & 0x00ff000000000000UL) >> 40UL) | 
-								(((cast(ulong)val) & 0xff00000000000000UL) >> 56UL);
-						*/
+						return (((val & 0x00000000000000ffUL) << 56UL) | 
+							((val  & 0x000000000000ff00UL) << 40UL) | 
+							((val  & 0x0000000000ff0000UL) << 24UL) | 
+							((val  & 0x00000000ff000000UL) <<  8UL) | 
+							((val  & 0x000000ff00000000UL) >>  8UL) | 
+							((val  & 0x0000ff0000000000UL) >> 24UL) | 
+							((val  & 0x00ff000000000000UL) >> 40UL) | 
+							((val  & 0xff00000000000000UL) >> 56UL)
+						);
 						
-						return (swapIfNeeded(cast(uint)(val & 0xffffffff00000000UL >> 32)) | 
-							swapIfNeeded(cast(uint)(val & 0x00000000ffffffffUL)));
-
 					} else static if (U.sizeof == 4) {
-							return ((val & 0x000000ff) << 24) |
-									((val & 0x0000ff00) <<  8) |
-									((val & 0x00ff0000) >>  8) |
-									((val & 0xff000000) >> 24);
+						return ((val & 0x000000ff) << 24) |
+							((val & 0x0000ff00) <<  8) |
+							((val & 0x00ff0000) >>  8) |
+							((val & 0xff000000) >> 24);
 					} else static if (U.sizeof == 2) {
 							return cast(ushort)(((val & 0xff00) >> 8) |
 									((val & 0x00ff) << 8));
@@ -99,6 +91,8 @@ struct BigEndian(T) {
 			}
 		}
 	}
+	version(BigEndian) {} else
+	static assert(swapIfNeeded(0xABCD_EF01_2345_6789) == 0x8967_4523_01EF_CDAB);
 }
 
 auto bigEndian(T)(T val) pure {
@@ -107,26 +101,6 @@ auto bigEndian(T)(T val) pure {
 	} else {
 		return BigEndian!T(val);
 	}
-}
-
-
-static struct CArray(TElement) {
-	alias ElementType = TElement;
-	ElementType firstElement;
-	
-	string toString() pure nothrow @nogc {
-		return "please use .toArray(size, pos)";
-	}
-	
-	static ElementType[] toArray(void* arrayPos, long size) pure nothrow @nogc {
-		if (arrayPos != null) {
-			return (cast(ElementType*)arrayPos)[0 .. cast(size_t)size];
-		} else {
-			return [];
-		}
-	}
-	
-	
 }
 
 T[] toArray(T)(const ubyte[] _array, const size_t size) {
@@ -156,7 +130,7 @@ T fromArray(T)(const ubyte[] _array) {
 		uint offset;
 		T result;
 		static assert(T.alignof == 1, "Be sure to use this only on align(1) structures!");
-		assert(_array.length >= T.sizeof,"your input array needs to be at least as long as your type.sizeof");
+		assert(_array.length >= T.sizeof, "your input array needs to be at least as long as your type.sizeof");
 
 		///XXX this cucially depends on your type being byte aligned!
 		foreach (member; __traits(derivedMembers, struct_type)) {
