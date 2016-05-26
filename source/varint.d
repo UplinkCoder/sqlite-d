@@ -155,8 +155,6 @@ struct VarInt {
 			return 7;
 		} else if (value < 1L<<56) {
 			return 8;
-		} else if (cast(ulong)value < 1UL << 63) {
-			return 9;
 		}
 		assert(0, "We should never get here");
 	}
