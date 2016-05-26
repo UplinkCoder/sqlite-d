@@ -1,7 +1,7 @@
 module varint;
 import utils;
 
-enum unrolled = false;
+enum unrolled = true;
 
 struct VarInt {
 	pure nothrow @safe @nogc :
@@ -192,9 +192,7 @@ struct VarInt {
 	static assert(VarInt(bigEndian!long(22)).toBeLong == 22);
 	static assert(VarInt.lengthInVarInt(BigEndian!long(-22)) == 9);
 	static assert(VarInt(bigEndian!long(uint.max)).toBeLong == uint.max);
-	pragma(msg, (VarInt(bigEndian!long(long.max))));
 	static assert(VarInt(cast(ubyte[])[0xFF, 0xFF, 0xFF, 0XFF, 0xFF, 0XFF, 0xFF, 0xFF, 0xEA]) == VarInt(bigEndian(-22L)));
-	pragma(msg, VarInt(bigEndian(long.max-22)));
 	//static assert (VarInt().lengthInVarInt(608) == 2);
 	static assert(VarInt((cast(ubyte[])[0x81,0x82,0x83,0x84,0x85,0x86,0x87,0x88,0x89])).toBeLong != 0);
 }
