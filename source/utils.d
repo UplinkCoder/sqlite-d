@@ -38,7 +38,7 @@ struct BigEndian(T) {
 		this.asNative = val.asNative;
 		return this;
 	}
-	import std.traits;
+	import std.traits : isIntegral;
 	BigEndian!T opAssign(U)(U val) if(!is(U.isBigEndian) && isIntegral!U) {
 		assert(val <= T.max && val >= T.min);
 		this.asNative = swapIfNeeded(cast(T)val);

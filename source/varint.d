@@ -1,14 +1,15 @@
 module varint;
 import utils;
 
-enum unrolled = true;
+enum unrolled = false;
 
 struct VarInt {
 	pure nothrow @safe @nogc :
 	this(BigEndian!long value) {
+		//FIXME the constructor does not work for value bigger then uint.max;
 		auto len = lengthInVarInt(value);
 		ubyte[9] tmp;
-		ulong beValue = value.asBigEndian;
+		long beValue = value.asBigEndian;
 		
 		while(len--) {
 			tmp[len] = (beValue & 0x7f) | 0x80;
@@ -22,6 +23,8 @@ struct VarInt {
 
 	alias toBeLong this;
 	alias toBeLong = toBeLongImpl;
+
+	//TODO FIXME toBeLong does not correctly convert negative Numbers
 
 	@property BigEndian!long toBeLongImpl() {
 		long tmp;
@@ -64,7 +67,6 @@ struct VarInt {
 				result.asNative = (cast(long)byteArray[0] << 56);
 			} else {
 				result.asNative = (cast(long)byteArray[0]);
-			
 			}
 			return result;
 		}
@@ -82,7 +84,7 @@ struct VarInt {
 		switch(v3) {
 			//	uint counter;
 			case 8 :
-				tmp |= ((cast(long)byteArray[8] & 0x7FUL) << 7 * (v3 - 8));
+				tmp |= ((cast(long)byteArray[8]) << 7 * (v3 - 8));
 				goto case 7;
 			case 7 :
 				tmp |= ((cast(long)byteArray[7] & 0x7FUL) << 7 * (v3 - 7));
@@ -116,7 +118,11 @@ struct VarInt {
 			ubyte val = byteArray[idx];
 			long maskedVal = (cast(long)val & 0x7fUL); // mask 8th bit
 			long shiftBy = (length-idx-1UL)*7UL;
-			tmp |=  (maskedVal << shiftBy);
+				if(idx < 8) {
+					tmp |=  (maskedVal << shiftBy);
+						} else {
+					tmp |=  (cast(long)val << 63UL);
+				}
 		}
 		}
 		//this evokes swapIfNeeded
@@ -131,7 +137,7 @@ struct VarInt {
 	}
 
 	static int lengthInVarInt(BigEndian!long value) {
-		if (value < 0) {
+		if (value > 1L<<56 || value < 0) {
 			return 9;
 		} else if (value < 1<<7) {
 			return 1;
@@ -147,8 +153,10 @@ struct VarInt {
 			return 6;
 		} else if (value < 1L<<49) {
 			return 7;
-		} else if (value < 1L<<63) {
+		} else if (value < 1L<<56) {
 			return 8;
+		} else if (cast(ulong)value < 1UL << 63) {
+			return 9;
 		}
 		assert(0, "We should never get here");
 	}
@@ -179,8 +187,16 @@ struct VarInt {
 	static assert(VarInt((cast(ubyte[])[0x82,0x00])).toBeLong == 0x0100); // should be 0x0100
 	static assert(_length((cast(ubyte[])[0x82,0x80,0x00])) == 3);
 	static assert(VarInt((cast(ubyte[])[0x84,0x60,0x00])).toBeLong == 608);
+	//FIXME make this work!
+//	static assert(VarInt(cast(ubyte[])[0xFF, 0xFF, 0xFF, 0XFF, 0xFF, 0XFF, 0xFF, 0xFF, 0xEA]).toBeLong == -22);
 	static assert(VarInt(bigEndian!long(265)).toBeLong == 265);
 	static assert(VarInt(bigEndian!long(6421)).toBeLong == 6421);
+	static assert(VarInt(bigEndian!long(22)).toBeLong == 22);
+	static assert(VarInt.lengthInVarInt(BigEndian!long(-22)) == 9);
+	static assert(VarInt(bigEndian!long(uint.max)).toBeLong == uint.max);
+	pragma(msg, (VarInt(bigEndian!long(long.max))));
+	static assert(VarInt(cast(ubyte[])[0xFF, 0xFF, 0xFF, 0XFF, 0xFF, 0XFF, 0xFF, 0xFF, 0xEA]) == VarInt(bigEndian(-22L)));
+	pragma(msg, VarInt(bigEndian(long.max-22)));
 	//static assert (VarInt().lengthInVarInt(608) == 2);
 	static assert(VarInt((cast(ubyte[])[0x81,0x82,0x83,0x84,0x85,0x86,0x87,0x88,0x89])).toBeLong != 0);
 }
