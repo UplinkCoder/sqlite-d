@@ -22,7 +22,7 @@ struct Table {
 	const Database.PageRange pages;
 	const RootPage rootPage;
 
-	int opApply(int delegate(const Database.Row r) dg) {
+	int opApply(scope int delegate(const Database.Row r) dg) {
 		readRowDg!dg(this);
 		return 0;
 	}

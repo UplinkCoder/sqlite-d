@@ -1,6 +1,7 @@
 module varint;
 import utils;
 
+enum unrolled = true;
 
 struct VarInt {
 	pure nothrow @safe @nogc :
@@ -24,22 +25,99 @@ struct VarInt {
 
 	@property BigEndian!long toBeLongImpl() {
 		long tmp;
+		static if (unrolled) {
+		uint v3 = 0; 
 
+		if ( byteArray[0] & 0x80)
+		{
+			v3 = 1;
+			if ( byteArray[1] & 0x80)
+			{
+				v3 = 2;
+				if ( byteArray[2] & 0x80)
+				{
+					v3 = 3;
+					if ( byteArray[3] & 0x80)
+					{
+						v3 = 4;
+						if ( byteArray[4] & 0x80)
+						{
+							v3 = 5;
+							if ( byteArray[5] & 0x80)
+							{
+								v3 = 6;
+								if ( byteArray[6] & 0x80)
+								{
+									v3 = 7;
+									if ( byteArray[7] & 0x80)
+										v3 = 8;
+								}
+							}
+						}
+					}
+				}
+			}
+		} else {
+			BigEndian!long result;
+
+			version (LittleEndian) {
+				result.asNative = (cast(long)byteArray[0] << 56);
+			} else {
+				result.asNative = (cast(long)byteArray[0]);
+			
+			}
+			return result;
+		}
+	
+		
+		} else {
 		uint length = length();
+		}
+
 		BigEndian!long result;
 		
 		// The hottest loop in the whole program!
 		//TODO There must be a way to speed it up!
+		static if (unrolled) {
+		switch(v3) {
+			//	uint counter;
+			case 8 :
+				tmp |= ((cast(long)byteArray[8] & 0x7FUL) << 7 * (v3 - 8));
+				goto case 7;
+			case 7 :
+				tmp |= ((cast(long)byteArray[7] & 0x7FUL) << 7 * (v3 - 7));
+				goto case 6;
+			case 6 :
+				tmp |= ((cast(long)byteArray[6] & 0x7FUL) << 7 * (v3 - 6));
+				goto case 5;
+			case 5 :
+				tmp |= ((cast(long)byteArray[5] & 0x7FUL) << 7 * (v3 - 5));
+				goto case 4;
+			case 4 :
+				tmp |= ((cast(long)byteArray[4] & 0x7FUL) << 7 * (v3 - 4));
+				goto case 3;
+			case 3 :
+				tmp |= ((cast(long)byteArray[3] & 0x7FUL) << 7 * (v3 - 3));
+				goto case 2;
+			case 2 :
+				tmp |= ((cast(long)byteArray[2] & 0x7FUL) << 7 * (v3 - 2));
+				goto case 1;
+			case 1 :
+				tmp |= ((cast(long)byteArray[1] & 0x7FUL) << 7 * (v3 - 1));
+				tmp |= ((cast(long)byteArray[0] & 0x7FUL) << 7 * (v3 - 0));
+			break;
+			default : assert(0);
+
+		}
+		} else 
+
+		{
 		foreach(idx;0..length) {
 			ubyte val = byteArray[idx];
 			long maskedVal = (cast(long)val & 0x7fUL); // mask 8th bit
 			long shiftBy = (length-idx-1UL)*7UL;
-
-			if(idx < 8) {
-				tmp |=  (maskedVal << shiftBy);
-			} else {
-				tmp |=  (cast(long)val << 63UL);
-			}
+			tmp |=  (maskedVal << shiftBy);
+		}
 		}
 		//this evokes swapIfNeeded
 		result = tmp;

@@ -1,5 +1,6 @@
 //import std.stdio;
 import sqlited;
+import sqlited : isIndex;
 import utils;
 import misc;
 import std.conv;
@@ -10,7 +11,6 @@ import std.algorithm : map, filter, count, reduce, each;
 import std.range : join, takeOne;
 //import std.typecons : tuple;
 static immutable db4 = cast(immutable) Database(cast(ubyte[]) import("test4.s3db"), "");
-
 
 int main(string[] args) {
 	import std.stdio;
@@ -23,17 +23,17 @@ int main(string[] args) {
 
 	auto test_db = Database("views/test-2.3.sqlite");
 	schemas = readRows!(r => r.deserialize!(Database.MasterTableSchema))(db.rootPage, db.pages);
-//	if (pageNr) {
-//		foreach(row;Table(db.pages, cast(RootPage)pageNr)) {
+	if (pageNr && !isIndex(db.pages[pageNr].pageType)) {
+		foreach(row;Table(db.pages, cast(RootPage)pageNr)) {
 //			foreach(col;row.colums) {
 //				col!(c => writeln(c));
 //			}
-//		}
-//	} else {
-		foreach(schema;schemas) {
-			writeln(schema);
 		}
-//	}
+	} else {
+		foreach(schema;schemas.filter!(s => s.type == "table")) {
+			writeln(schema.name, ":", schema.rootPage);
+		}
+	}
 	struct Town {
 		uint PK_UID;
 		string name;
@@ -67,6 +67,8 @@ int main(string[] args) {
 			}
 			sw.stop();
 		}
+
+	//	foreach(_;test_db.table("Regions")) {}
 
 		writeln("Getting all ", x, " entries of colum 1 in table Album ", times, " times took ", sw.peek().msecs, "msecs");
 //	writeln(db4.table("Artist"));

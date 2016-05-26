@@ -71,7 +71,6 @@ struct BigEndian(T) {
 							((val  & 0x00ff000000000000UL) >> 40UL) | 
 							((val  & 0xff00000000000000UL) >> 56UL)
 						);
-						
 					} else static if (U.sizeof == 4) {
 						return ((val & 0x000000ff) << 24) |
 							((val & 0x0000ff00) <<  8) |
@@ -91,8 +90,11 @@ struct BigEndian(T) {
 			}
 		}
 	}
-	version(BigEndian) {} else
-	static assert(swapIfNeeded(0xABCD_EF01_2345_6789) == 0x8967_4523_01EF_CDAB);
+
+	version(BigEndian) {} else {
+		static assert(swapIfNeeded(0xABCD_EF01_2345_6789) == 0x8967_4523_01EF_CDAB);
+		static assert(swapIfNeeded(0x0123_4567_89AB_CDEF) == 0xEFCD_AB89_6745_2301);
+	}
 }
 
 auto bigEndian(T)(T val) pure {

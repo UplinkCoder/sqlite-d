@@ -2,7 +2,7 @@ module sqlited;
 /****************************
  * SQLite-D SQLite 3 Reader *
  * By Stefan Koch 2016      *
-*****************************/
+ ****************************/
 
 import utils;
 import varint;
@@ -246,9 +246,13 @@ struct Database {
 				result.FileFormatWriteVer = cast(FileFormat)raw[18 .. 19][0];
 				result.FileFormatReadVer = cast(FileFormat)raw[19 .. 20][0];
 				result.reserved = raw[20 .. 21][0];
+				// maxEmbeddedPayloadFract ff.
+				// are immutable values and do not need to be read
+
 				//	result.maxEmbeddedPayloadFract = raw[21 .. 22];
 				//	result.minEmbeddedPayloadFract = raw[22 .. 23];
 				//	result.leafPayloadFract = raw[23 .. 24]
+
 				result.fileChangeCounter = raw[24 .. 28];
 				result.sizeInPages = raw[28 .. 32];
 				result.firstFreelistPage = raw[32 .. 36];
@@ -333,7 +337,6 @@ struct Database {
 			const ubyte[] payloadHeaderBytes;
 			const ubyte[] payloadStart;
 
-			import std.traits : allSatisfy;
 			auto colum(const uint colNum) pure const {
 				auto payloadHeader = PayloadHeader(payloadHeaderBytes);
 				uint offset;
@@ -734,7 +737,7 @@ static Database.Payload extractPayload(
 		overflowInfo.pageSlice = overflowInfo.pageSlice[_length .. $];
 
 		if (overflowInfo.pageSlice.length == uint.sizeof) {
-			assert(0, "I do not expect us to ever get here"
+			assert(0, "I do not expect us to ever get here\n"
 				"If we ever do, uncomment the two lines below and delete this assert");
 		//		overflowInfo.nextPageIdx = BigEndian(overflowInfo.pageSlice[0 .. uint.sizeof]);
 		//		overflowInfo.gotoNextPage(pages);
@@ -922,7 +925,7 @@ unittest {
 	assert(p.getAs!(int) == 0);
 }
 
-private bool isIndex(const Database.BTreePage.BTreePageType pageType) pure {
+bool isIndex(const Database.BTreePage.BTreePageType pageType) pure {
 	return ((pageType & 2) ^ 2) == 0; 
 }
 
