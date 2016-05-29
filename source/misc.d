@@ -47,6 +47,7 @@ Table table(const Database db, in string tableName) pure {
 			r.colum(1).getAs!string == tableName) {
 			rootPage = r.colum(3).getAs!uint - 1;
 		}
+		//assert(rootPage, "table not found");
 	})(db.pages[0], db.pages);
 		
 		
@@ -163,25 +164,22 @@ void readRows(alias rowHandler,bool writable = false, RR)(const Database.BTreePa
 	enum isPure = is(typeof((){void _() pure {rowHandler(cast(const)Database.Row.init);}}()));
 	enum noReturn = is(hrt == void) || is(hrt == typeof(null));
 
+	static assert(is(hrt), "rowHandler has to be callable with (Row)" ~ typeof(rowHandler).stringof);
+
 	auto cpa = page.getCellPointerArray();
 
 	switch (page.pageType) with (Database.BTreePage.BTreePageType) {
 		
 		case tableLeafPage: {
 			foreach(cp;cpa) {
-				static if (is(hrt)) {
-					static if (noReturn) {
-						rowHandler(page.getRow(cp, pages));
-					} else {
-						static if (is (RR == defaultReturnRangeType)) {
-							returnRange ~= rowHandler(page.getRow(cp, pages));
-						} else {
-							returnRange.put(rowHandler(page.getRow(cp, pages)));
-						}
-
-					}
+				static if (noReturn) {
+					rowHandler(page.getRow(cp, pages, page.pageType));
 				} else {
-					static assert(0, "rowHandler has to be callable with (Row)" ~ typeof(rowHandler).stringof);
+					static if (is (RR == defaultReturnRangeType)) {
+						returnRange ~= rowHandler(page.getRow(cp, pages, page.pageType));
+					} else {
+						returnRange.put(rowHandler(page.getRow(cp, pages, page.pageType)));
+					}
 				}
 			}
 		} break;
@@ -195,10 +193,55 @@ void readRows(alias rowHandler,bool writable = false, RR)(const Database.BTreePa
 			readRows!rowHandler(pages[page.header._rightmostPointer - 1], pages, returnRange);
 
 		} break;
+		
+		case indexInteriorPage: {
+			import varint;
 
+			uint leftChildPtr;
+			ushort offset =  cast(ushort) (cpa.length * ushort.sizeof);
+			// you know that this pointer can be big
+			VarInt leftChildPtr_v = VarInt(page.page[offset .. offset * ushort.sizeof  + 9]);
+			leftChildPtr = cast(uint)leftChildPtr_v;
+			offset += leftChildPtr_v.length;
+
+			readRows!rowHandler(pages[leftChildPtr - 1], pages, returnRange);
+
+			static if (noReturn) {
+				rowHandler(page.getRow(offset, pages, page.pageType));
+			} else {
+				static if (is (RR == defaultReturnRangeType)) {
+					returnRange ~= rowHandler(page.getRow(offset, pages, page.pageType));
+				} else {
+					returnRange.put(rowHandler(page.getRow(offset, pages, page.pageType)));
+				}
+			}
+
+
+			foreach(cp;cpa) {
+				readRows!rowHandler(pages[BigEndian!uint(page.page[cp .. cp + uint.sizeof]) - 1], pages, returnRange);
+			}
+
+			readRows!rowHandler(pages[page.header._rightmostPointer - 1], pages, returnRange);
+
+
+		} break ;
+
+		case indexLeafPage: {
+			foreach(cp;cpa) {
+				static if (noReturn) {
+					rowHandler(page.getRow(cp, pages, page.pageType));
+				} else {
+					static if (is (RR == defaultReturnRangeType)) {
+						returnRange ~= rowHandler(page.getRow(cp, pages, page.pageType));
+					} else {
+						returnRange.put(rowHandler(page.getRow(cp, pages, page.pageType)));
+					}
+				}
+			}
+		} break ;
 
 		default:
-			assert(0, "indexes are not supported by handle Row nor are empty pages");
+			assert(0, "empty pages are not handled by readRows!");
 	}
 
 	return ;

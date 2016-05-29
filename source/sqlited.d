@@ -327,18 +327,26 @@ struct Database {
 
 	
 		const ubyte[] page;
-		const uint headerOffset; 
+		const uint headerOffset;
 		
-		mixin template colum_() {
+		static struct Row {
+			const PageRange pages;
+			const uint payloadSize;
+			const uint rowId;
+			const uint payloadHeaderSize;
+			const ubyte[] payloadHeaderBytes;
+			const ubyte[] payloadStart;
+			bool isIndex;
+
 			auto colum(const uint colNum) pure const {
 				auto payloadHeader = PayloadHeader(payloadHeaderBytes);
 				uint offset;
-
+				
 				foreach(_; 0 .. colNum) {
 					offset += payloadHeader.front().length;
 					payloadHeader.popFront();
 				}
-
+				
 				auto typeCode = payloadHeader.front();
 				uint payloadEnd = cast(uint) (offset + typeCode.length);
 				
@@ -350,41 +358,12 @@ struct Database {
 				}
 			}
 		}
-		
-		static struct IndexRow {
-			const PageRange pages;
-			const uint payloadSize;
-			const uint payloadHeaderSize;
-			const ubyte[] payloadHeaderBytes;
-			const ubyte[] payloadStart;
-
-			mixin colum_;
-		}
-		
-		static struct Row {
-			const PageRange pages;
-			const uint payloadSize;
-			const uint rowId;
-			const uint payloadHeaderSize;
-			const ubyte[] payloadHeaderBytes;
-			const ubyte[] payloadStart;
-			
-			mixin colum_;
-		}
 
 
 
-
-		Row getRow(const ushort cellPointer, const PageRange pages, const BTreePageType pageType = BTreePageType.tableLeafPage) pure const {
+		Row getRow(const ushort cellPointer, const PageRange pages, const BTreePageType pageType) pure const {
 			uint offset = cellPointer;
 			import std.algorithm : min;
-
-			ulong leftChildPtr;
-			if (pageType == BTreePageType.indexInteriorPage) {
-				VarInt leftChildPtr_v = VarInt(page[offset .. offset + 9]);
-				leftChildPtr = leftChildPtr_v;
-				offset += leftChildPtr_v.length;
-			}
 
 			auto payloadSize = VarInt(page[offset .. offset + 9]);
 			offset += payloadSize.length;
@@ -402,11 +381,13 @@ struct Database {
 			if (_payloadHeaderSize > page.length - offset) {
 				assert(0, "Overflowing payloadHeaders are currently not handeled");
 			}
+
 			auto ph = page[offset + payloadHeaderSize.length .. offset + _payloadHeaderSize];
 			offset += _payloadHeaderSize;
 			// TODO The payloadHeader does not have to be sliced off here
 			// We can potentially do better of we pass just one buffer to struct Row and slice there.
-			return Row(pages, cast(uint) payloadSize, cast(uint) rowId, cast(uint) _payloadHeaderSize , ph, page[offset .. $]);
+
+			return Row(pages, cast(uint) payloadSize, cast(uint) rowId, cast(uint) _payloadHeaderSize , ph, page[offset .. $], isIndex(pageType));
 		}
 
 		//		string toString(PageRange pages) {

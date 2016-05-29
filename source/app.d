@@ -23,16 +23,17 @@ int main(string[] args) {
 
 	auto test_db = Database("views/test-2.3.sqlite");
 	schemas = readRows!(r => r.deserialize!(Database.MasterTableSchema))(db.rootPage, db.pages);
-	if (pageNr && !isIndex(db.pages[pageNr].pageType)) {
+	if (pageNr) {
 		foreach(row;Table(db.pages, cast(RootPage)pageNr)) {
 //			foreach(col;row.colums) {
-//				col!(c => writeln(c));
+//				col!(pl => pl.writeln);
 //			}
 		}
 	} else {
 		foreach(schema;schemas.filter!(s => s.type == "table")) {
 			writeln(schema.name, ":", schema.rootPage);
 		}
+
 	}
 	struct Town {
 		uint PK_UID;
