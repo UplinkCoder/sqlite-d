@@ -24,11 +24,15 @@ int main(string[] args) {
 	auto test_db = Database("views/test-2.3.sqlite");
 	schemas = readRows!(r => r.deserialize!(Database.MasterTableSchema))(db.rootPage, db.pages);
 	if (pageNr) {
+		uint x;
 		foreach(row;Table(db.pages, cast(RootPage)pageNr)) {
+//			row.colum(0).apply!writeln;
 //			foreach(col;row.colums) {
 //				col!(pl => pl.writeln);
 //			}
+			x++;
 		}
+		x.writeln();
 	} else {
 		foreach(schema;schemas.filter!(s => s.type == "table")) {
 			writeln(schema.name, ":", schema.rootPage);

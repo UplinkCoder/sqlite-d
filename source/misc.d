@@ -149,7 +149,7 @@ RR readRows(alias rowHandler, RR = rowHandlerReturnType!(rowHandler)[])(const Da
 	enum noReturn = is(RR == void[]);
 	enum isPure = is(typeof((){void _() pure {rowHandler(cast(const)Database.Row.init);}}()));
 
-	pragma(msg, isPure);
+//	pragma(msg, isPure);
 //	static assert(isPure);
 	readRows!rowHandler(page, pages, returnArray);
 	return returnArray;
@@ -188,6 +188,7 @@ void readRows(alias rowHandler,bool writable = false, RR)(const Database.BTreePa
 		case tableInteriorPage: {
 			foreach(cp;cpa) {
 				readRows!rowHandler(pages[BigEndian!uint(page.page[cp .. cp + uint.sizeof]) - 1], pages, returnRange);
+				//TODO Read The Key!
 			}
 
 			readRows!rowHandler(pages[page.header._rightmostPointer - 1], pages, returnRange);
@@ -195,30 +196,21 @@ void readRows(alias rowHandler,bool writable = false, RR)(const Database.BTreePa
 		} break;
 		
 		case indexInteriorPage: {
-			import varint;
 
-			uint leftChildPtr;
-			ushort offset =  cast(ushort) (cpa.length * ushort.sizeof);
-			// you know that this pointer can be big
-			VarInt leftChildPtr_v = VarInt(page.page[offset .. offset * ushort.sizeof  + 9]);
-			leftChildPtr = cast(uint)leftChildPtr_v;
-			offset += leftChildPtr_v.length;
+			foreach(cp_;cpa) {
+				ushort cp = cast(ushort)(cp_ + uint.sizeof);
 
-			readRows!rowHandler(pages[leftChildPtr - 1], pages, returnRange);
-
-			static if (noReturn) {
-				rowHandler(page.getRow(offset, pages, page.pageType));
-			} else {
-				static if (is (RR == defaultReturnRangeType)) {
-					returnRange ~= rowHandler(page.getRow(offset, pages, page.pageType));
+				static if (noReturn) {
+					rowHandler(page.getRow(cp, pages, page.pageType));
 				} else {
-					returnRange.put(rowHandler(page.getRow(offset, pages, page.pageType)));
+					static if (is (RR == defaultReturnRangeType)) {
+						returnRange ~= rowHandler(page.getRow(cp, pages, page.pageType));
+					} else {
+						returnRange.put(rowHandler(page.getRow(cp, pages, page.pageType)));
+					}
 				}
-			}
 
-
-			foreach(cp;cpa) {
-				readRows!rowHandler(pages[BigEndian!uint(page.page[cp .. cp + uint.sizeof]) - 1], pages, returnRange);
+				readRows!rowHandler(pages[BigEndian!uint(page.page[cp_ .. cp]) - 1], pages, returnRange);
 			}
 
 			readRows!rowHandler(pages[page.header._rightmostPointer - 1], pages, returnRange);
@@ -227,6 +219,7 @@ void readRows(alias rowHandler,bool writable = false, RR)(const Database.BTreePa
 		} break ;
 
 		case indexLeafPage: {
+
 			foreach(cp;cpa) {
 				static if (noReturn) {
 					rowHandler(page.getRow(cp, pages, page.pageType));
