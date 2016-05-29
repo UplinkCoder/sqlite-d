@@ -10,13 +10,15 @@ struct VarInt {
 		auto len = lengthInVarInt(value);
 		ubyte[9] tmp;
 		long beValue = value.asBigEndian;
-		
-		while(len--) {
-			tmp[len] = (beValue & 0x7f) | 0x80;
+
+		auto _len = len;
+		while(_len--) {
+			tmp[_len] = (beValue & 0x7f) | 0x80;
 			beValue >>= 7;
 		}
-		tmp[lengthInVarInt(value)-1] &= 0x7f;
-		byteArray = tmp;
+		tmp[len-1] &= 0x7f;
+
+		byteArray = tmp[0 .. len];
 	}
 
 	const ubyte[] byteArray;

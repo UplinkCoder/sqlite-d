@@ -59,10 +59,10 @@ int main(string[] args) {
 		enum times = 2*4096;
 		foreach(_; 0 .. times) {
 			string result;
-		x = 0;
+			x = 0;
 			sw.start;
 			foreach(row;(db4).table("Album")) {
-			x++;
+				x++;
 				row.colum(1).getAs!string;
 			}
 			sw.stop();

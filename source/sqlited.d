@@ -328,15 +328,8 @@ struct Database {
 	
 		const ubyte[] page;
 		const uint headerOffset; 
-
-		static struct Row {
-			const PageRange pages;
-			const uint payloadSize;
-			const uint rowId;
-			const uint payloadHeaderSize;
-			const ubyte[] payloadHeaderBytes;
-			const ubyte[] payloadStart;
-
+		
+		mixin template colum_() {
 			auto colum(const uint colNum) pure const {
 				auto payloadHeader = PayloadHeader(payloadHeaderBytes);
 				uint offset;
@@ -356,8 +349,30 @@ struct Database {
 					return extractPayload(&overflowInfo, typeCode, pages);
 				}
 			}
-
 		}
+		
+		static struct IndexRow {
+			const PageRange pages;
+			const uint payloadSize;
+			const uint payloadHeaderSize;
+			const ubyte[] payloadHeaderBytes;
+			const ubyte[] payloadStart;
+
+			mixin colum_;
+		}
+		
+		static struct Row {
+			const PageRange pages;
+			const uint payloadSize;
+			const uint rowId;
+			const uint payloadHeaderSize;
+			const ubyte[] payloadHeaderBytes;
+			const ubyte[] payloadStart;
+			
+			mixin colum_;
+		}
+
+
 
 
 		Row getRow(const ushort cellPointer, const PageRange pages, const BTreePageType pageType = BTreePageType.tableLeafPage) pure const {
@@ -381,7 +396,7 @@ struct Database {
 				offset += rowId_v.length;
 			}
 			
-			auto payloadHeaderSize = VarInt(page[offset .. min(offset + 9, page.length)]);
+			auto payloadHeaderSize = VarInt(page[offset ..  page.length]);
 			uint _payloadHeaderSize = cast(uint)payloadHeaderSize;
 
 			if (_payloadHeaderSize > page.length - offset) {
