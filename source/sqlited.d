@@ -336,7 +336,7 @@ struct Database {
 			const uint payloadHeaderSize;
 			const ubyte[] payloadHeaderBytes;
 			const ubyte[] payloadStart;
-			bool isIndex;
+			const BTreePageType pageType;
 
 			auto colum(const uint colNum) pure const {
 				auto payloadHeader = PayloadHeader(payloadHeaderBytes);
@@ -353,7 +353,7 @@ struct Database {
 				if (payloadStart.length > payloadEnd) {
 					return extractPayload(payloadStart[offset .. payloadEnd], typeCode);
 				} else {
-					auto overflowInfo = OverflowInfo(payloadStart, offset, payloadSize, pages, payloadHeaderSize);
+					auto overflowInfo = OverflowInfo(payloadStart, offset, payloadSize, pages, payloadHeaderSize, pageType);
 					return extractPayload(&overflowInfo, typeCode, pages);
 				}
 			}
@@ -387,7 +387,7 @@ struct Database {
 			// TODO The payloadHeader does not have to be sliced off here
 			// We can potentially do better of we pass just one buffer to struct Row and slice there.
 
-			return Row(pages, cast(uint) payloadSize, cast(uint) rowId, cast(uint) _payloadHeaderSize , ph, page[offset .. $], isIndex(pageType));
+			return Row(pages, cast(uint) payloadSize, cast(uint) rowId, cast(uint) _payloadHeaderSize , ph, page[offset .. $], pageType);
 		}
 
 		//		string toString(PageRange pages) {
@@ -673,7 +673,7 @@ struct OverflowInfo {
 	const(ubyte)[] pageSlice;
 	uint nextPageIdx;
 
-	this(const ubyte[] payloadStart, int offset, const uint payloadSize, const Database.PageRange pages, const uint payloadHeaderSize, const Database.BTreePageType pageType = Database.BTreePageType.tableLeafPage) pure {
+	this(const ubyte[] payloadStart, int offset, const uint payloadSize, const Database.PageRange pages, const uint payloadHeaderSize, const Database.BTreePageType pageType) pure {
 		import std.algorithm : min;
 		
 		uint x;

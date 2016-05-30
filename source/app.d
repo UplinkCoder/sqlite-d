@@ -13,7 +13,6 @@ import std.range : join, takeOne;
 static immutable db4 = cast(immutable) Database(cast(ubyte[]) import("test4.s3db"), "");
 
 int main(string[] args) {
-	import std.stdio;
 	string filename = (args.length > 1 ? args[1] : "views/test-2.3.sqlite");
 	auto pageNr = (args.length > 2 ? parse!(int)(args[2]) : 0);
 	writefln("opening file %s", filename); 
@@ -82,5 +81,6 @@ int main(string[] args) {
 //		writeln("invalid database or header corrupted");
 //	}
 	assert(0);
+
 //	readln();
 }
