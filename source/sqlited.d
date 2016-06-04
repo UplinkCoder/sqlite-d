@@ -365,12 +365,12 @@ struct Database {
 			uint offset = cellPointer;
 			import std.algorithm : min;
 
-			auto payloadSize = VarInt(page[offset .. offset + 9]);
+			auto payloadSize = VarInt(page[offset .. $]);
 			offset += payloadSize.length;
 
 			ulong rowId;
 			if (pageType == BTreePageType.tableLeafPage) {
-				VarInt rowId_v = VarInt(page[offset .. offset + 9]);
+				VarInt rowId_v = VarInt(page[offset .. $]);
 				rowId = rowId_v;
 				offset += rowId_v.length;
 			}
@@ -621,11 +621,11 @@ struct Database {
 					assert(0, "page has no payload");
 					
 				case indexInteriorPage:
-					return VarInt(page[cp + uint.sizeof .. cp + uint.sizeof + 9]);
+					return VarInt(page[cp + uint.sizeof .. $]);
 				case indexLeafPage:
-					return VarInt(page[cp .. cp + 9]);
+					return VarInt(page[cp .. $]);
 				case tableLeafPage:
-					return VarInt(page[cp .. cp + 9]);
+					return VarInt(page[cp .. $]);
 			}
 		}
 
