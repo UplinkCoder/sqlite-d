@@ -24,15 +24,7 @@ auto getDelim(char c) {
 			return ' ';
 	}
 }
-struct TableInfo {
-	ColumInfo[] columInfos;
-	string tableName;
-
-	this(string tableName, ColumInfo[] columInfos) pure {
-		this.tableName = tableName;
-		this.columInfos = columInfos;
-	}
-}
+import sqlstuff;
 import std.algorithm;
 void skipWhiteSpace(string _string, uint* pos) {
 
@@ -72,14 +64,6 @@ auto parseCreateTable(const string sql) pure {
 	return TableInfo(tableName, columInfos);
 }
 
-struct ColumInfo {
-	string name;
-	string typeName;
-	bool notNull;
-	bool primaryKey;
-	bool unique;
-	bool autoincrement;
-}
 	
 
 auto parseColum(const string sql) pure {

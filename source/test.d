@@ -1,7 +1,7 @@
 module test;
 import sqlited;
 import misc;
-
+import sqlstuff;
 static immutable long_create_table = 
 q{CREATE TABLE `veryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryverylooooooooooooooooooooooooooooooooooooooooooooooooooooooooooongtttttttttaaaaaaaaaaaaaaaabbbbbbbbbbbbbbbbbbbllllllllllleeeeeeeeeeeeeeeeennnnnnaaaaaaaaaaameeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee` (
 	`vvvvvvvvvveeeeeeeerrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrryyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyylllllllloooooooooooooooooooooooooooonnnnnnnnnnnnnnnngggggggggggggggggggvvvvvvvvvvvvvvvvffffffffffffffffffffiiiiiiiiiiieeeeeeeeeeeeeeeeellllllllllllllddddddddddddddddddddddnnnnnnnnnnnaaaaaaaaaaaaammmmmmmmmmmmmmmmeeeeeeeeeeeeeeeeee`	INTEGER,
@@ -14,7 +14,7 @@ static assert(schemas[2].sql==long_create_table);
 import frail_sql_parser;
 
 static assert (parseCreateTable(
-q{CREATE TABLE spatial_ref_sys (
+	q{CREATE TABLE spatial_ref_sys (
 		srid INTEGER NOT NULL PRIMARY KEY,
 		auth_name VARCHAR(256) NOT NULL,
 		auth_srid INTEGER NOT NULL,
@@ -22,13 +22,13 @@ q{CREATE TABLE spatial_ref_sys (
 		proj4text VARCHAR(2048) NOT NULL)}
 	) == TableInfo("spatial_ref_sys", [
 			ColumInfo("srid", "INTEGER", true, true),
-			ColumInfo("auth_name", "VARCHAR(256)", true),
-			ColumInfo("auth_srid", "INTEGER", true),
+			ColumInfo("auth_name", "VARCHAR(256)", false, true),
+			ColumInfo("auth_srid", "INTEGER", false, true),
 			ColumInfo("ref_sys_name","VARCHAR(256)",false),
-			ColumInfo("proj4text","VARCHAR(2048)",true),
-		])
+			ColumInfo("proj4text","VARCHAR(2048)", false, true),
+	])
 );
-static assert(parseCreateTable(long_create_table) == TableInfo("veryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryverylooooooooooooooooooooooooooooooooooooooooooooooooooooooooooongtttttttttaaaaaaaaaaaaaaaabbbbbbbbbbbbbbbbbbbllllllllllleeeeeeeeeeeeeeeeennnnnnaaaaaaaaaaameeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee", [ColumInfo("vvvvvvvvvveeeeeeeerrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrryyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyylllllllloooooooooooooooooooooooooooonnnnnnnnnnnnnnnngggggggggggggggggggvvvvvvvvvvvvvvvvffffffffffffffffffffiiiiiiiiiiieeeeeeeeeeeeeeeeellllllllllllllddddddddddddddddddddddnnnnnnnnnnnaaaaaaaaaaaaammmmmmmmmmmmmmmmeeeeeeeeeeeeeeeeee", "INTEGER", false, false, false, false), ColumInfo("Field2", "INTEGER", false, false, false, false)]));
+static assert(parseCreateTable(long_create_table) == TableInfo("veryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryverylooooooooooooooooooooooooooooooooooooooooooooooooooooooooooongtttttttttaaaaaaaaaaaaaaaabbbbbbbbbbbbbbbbbbbllllllllllleeeeeeeeeeeeeeeeennnnnnaaaaaaaaaaameeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee", [ColumInfo("vvvvvvvvvveeeeeeeerrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrryyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyylllllllloooooooooooooooooooooooooooonnnnnnnnnnnnnnnngggggggggggggggggggvvvvvvvvvvvvvvvvffffffffffffffffffffiiiiiiiiiiieeeeeeeeeeeeeeeeellllllllllllllddddddddddddddddddddddnnnnnnnnnnnaaaaaaaaaaaaammmmmmmmmmmmmmmmeeeeeeeeeeeeeeeeee", "INTEGER"), ColumInfo("Field2", "INTEGER")]));
 
 static assert(parseCreateTable(
 q{CREATE TABLE Towns (
@@ -39,4 +39,13 @@ q{CREATE TABLE Towns (
 				County INTEGER,
 				Region INTEGER, "Geometry" POINT)
 }
-) != TableInfo.init);
+	) == TableInfo("Towns", [
+		ColumInfo("PK_UID", "INTEGER", true, false, false, true), 
+		ColumInfo("Name", "TEXT"),
+		ColumInfo("Peoples", "INTEGER"), 
+		ColumInfo("LocalCounc", "INTEGER"), 
+		ColumInfo("County", "INTEGER"), 
+		ColumInfo("Region", "INTEGER"), 
+		ColumInfo("Geometry", "POINT")
+	])
+);
