@@ -98,7 +98,7 @@ auto parseColum(const string sql) pure {
 	//so if I would eat the the final ')' truncate the strlen before the final ')'
 	import std.range : retro;
 	auto lastParen = cast(int)sql.retro.countUntil(')');
-	if (sql.length - result.length - strlen <= lastParen) {
+	if (sql.length - result.length - strlen < lastParen) {
 		strlen -= 1;
 	}
 	// the code above is a nasty nasty nasty HACK!!!
