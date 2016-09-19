@@ -305,7 +305,7 @@ struct Database {
 	static struct TableSchema {
 		static struct SchemaEntry {
 			//	uint colNumber;
-			string columNmae;
+			string columnNmae;
 			string TypeName;
 			string defaultValue;
 			bool isPrimayKey;
@@ -338,7 +338,7 @@ struct Database {
 			const ubyte[] payloadStart;
 			const BTreePageType pageType;
 
-			auto colum(const uint colNum) pure const {
+			auto column(const uint colNum) pure const {
 				auto payloadHeader = PayloadHeader(payloadHeaderBytes);
 				uint offset;
 				
@@ -905,12 +905,12 @@ auto getAs(T)(Database.Payload p) {
 	return p.apply!(v => cast(T) v);
 }
 
-auto getAs(T)(Database.Row r, uint columIndex) {
-	return r.colum(columIndex).getAs!T();
+auto getAs(T)(Database.Row r, uint columnIndex) {
+	return r.column(columnIndex).getAs!T();
 }
 
 auto getAs(T)(Database.Row r, Database.TableSchema s, string colName) {
-	return r.getAs!T(s.getColumIndex(colName));
+	return r.getAs!T(s.getcolumnIndex(colName));
 }
 
 unittest {

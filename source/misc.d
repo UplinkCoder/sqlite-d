@@ -43,9 +43,9 @@ Table table(const Database db, in string tableName) pure {
 
 	readRows!(
 		(r) {
-		if (r.colum(0).getAs!string == "table" && 
-			r.colum(1).getAs!string == tableName) {
-			rootPage = r.colum(3).getAs!uint - 1;
+		if (r.column(0).getAs!string == "table" && 
+			r.column(1).getAs!string == tableName) {
+			rootPage = r.column(3).getAs!uint - 1;
 		}
 		//assert(rootPage, "table not found");
 	})(db.pages[0], db.pages);
@@ -138,6 +138,7 @@ static assert (is(pageHandlerRetrunType!((page, pages) => page)));
 auto readRows(alias RowHandler)(const Table table) {
 	return readRows!(RowHandler)(table.pages[cast(uint)table.rootPage], table.pages);
 }
+
 int readRowDg(alias dg)(const Table table) {
 	readRows!((r) {dg(r);})(table);
 	return 0;
