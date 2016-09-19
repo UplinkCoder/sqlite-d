@@ -25,8 +25,8 @@ int main(string[] args) {
 	if (pageNr) {
 		uint x;
 		foreach(row;Table(db.pages, cast(RootPage)pageNr)) {
-//			row.colum(0).apply!writeln;
-//			foreach(col;row.colums) {
+//			row.column(0).apply!writeln;
+//			foreach(col;row.columns) {
 //				col!(pl => pl.writeln);
 //			}
 			x++;
@@ -67,14 +67,14 @@ int main(string[] args) {
 			sw.start;
 			foreach(row;(db4).table("Album")) {
 				x++;
-				row.colum(1).getAs!string;
+				row.column(1).getAs!string;
 			}
 			sw.stop();
 		}
 
 	//	foreach(_;test_db.table("Regions")) {}
 
-		writeln("Getting all ", x, " entries of colum 1 in table Album ", times, " times took ", sw.peek().msecs, "msecs");
+		writeln("Getting all ", x, " entries of column 1 in table Album ", times, " times took ", sw.peek().msecs, "msecs");
 //	writeln(db4.table("Artist"));
 		return 0;
 //	} else {
