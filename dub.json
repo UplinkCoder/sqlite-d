@@ -3,6 +3,7 @@
 	"description": "A native SQLite Database reader",
 	"copyright": "Copyright © 2015, Stefan Koch",
 	"authors": ["Stefan Koch"],
+	"license" : "boost",
 	"dependencies": {
 	}
 }
