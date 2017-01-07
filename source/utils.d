@@ -14,7 +14,20 @@ module utils;
 struct BigEndian(T) {
 	T asNative;
 	alias asBigEndian this;
-	pure nothrow @safe @nogc :
+
+pure nothrow @safe :
+	@property ubyte[] asArray() const {
+		alias staticArrayType = ubyte[T.sizeof];
+		ubyte[] result = staticArrayType.init;
+
+		foreach(i;0 .. T.sizeof) {
+			result[i] = ((asNative >> i*8) & 0xff);
+		}
+
+		return result;
+	}
+
+@nogc :
 	@property T asBigEndian() const {
 		return swapIfNeeded(asNative);
 	}
@@ -101,6 +114,7 @@ struct BigEndian(T) {
 	version(BigEndian) {} else {
 		static assert(swapIfNeeded(0xABCD_EF01_2345_6789) == 0x8967_4523_01EF_CDAB);
 		static assert(swapIfNeeded(0x0123_4567_89AB_CDEF) == 0xEFCD_AB89_6745_2301);
+		static assert(BigEndian!int(cast(ubyte[])[0x01, 0x02, 0x03, 0x04]).asArray == (cast(ubyte[])[0x01, 0x02, 0x03, 0x04]));
 	}
 }
 
