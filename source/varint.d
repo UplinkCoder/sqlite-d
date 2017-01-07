@@ -28,11 +28,12 @@ struct VarInt {
 	const ubyte[] byteArray;
 
 	alias toBeLong this;
-	alias toBeLong = toBeLongImpl;
 
 	//TODO FIXME toBeLong does not correctly convert negative Numbers
 
-	@property BigEndian!long toBeLongImpl() {
+	@property BigEndian!long toBeLong() {
+		// apperantly this function should really be inlined
+		// consider making it a mixin
 		long tmp;
 		static if (unrolled) {
 		uint v3 = 0; 

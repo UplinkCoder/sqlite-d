@@ -1,5 +1,8 @@
 module layout2dot;
 import sqlited;
+import utils;
+import std.conv : to;
+import misc;
 
 string TreeLayoutToDot(Database db) {
 	string result = "digraph table {";
