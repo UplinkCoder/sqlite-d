@@ -35,35 +35,35 @@ pure nothrow @safe @nogc:
 
     //TODO FIXME toBeLong does not correctly convert negative Numbers
 
-    @property BigEndian!long toBeLong()
+    @property BigEndian!long toBeLong() @trusted
     {
         long tmp;
         static if (unrolled)
         {
             uint v3 = 0;
 
-            if (byteArray[0] & 0x80)
+            if (byteArray.ptr[0] & 0x80)
             {
                 v3 = 1;
-                if (byteArray[1] & 0x80)
+                if (byteArray.ptr[1] & 0x80)
                 {
                     v3 = 2;
-                    if (byteArray[2] & 0x80)
+                    if (byteArray.ptr[2] & 0x80)
                     {
                         v3 = 3;
-                        if (byteArray[3] & 0x80)
+                        if (byteArray.ptr[3] & 0x80)
                         {
                             v3 = 4;
-                            if (byteArray[4] & 0x80)
+                            if (byteArray.ptr[4] & 0x80)
                             {
                                 v3 = 5;
-                                if (byteArray[5] & 0x80)
+                                if (byteArray.ptr[5] & 0x80)
                                 {
                                     v3 = 6;
-                                    if (byteArray[6] & 0x80)
+                                    if (byteArray.ptr[6] & 0x80)
                                     {
                                         v3 = 7;
-                                        if (byteArray[7] & 0x80)
+                                        if (byteArray.ptr[7] & 0x80)
                                             v3 = 8;
                                     }
                                 }
@@ -78,11 +78,11 @@ pure nothrow @safe @nogc:
 
                 version (LittleEndian)
                 {
-                    result.asNative = (cast(long) byteArray[0] << 56);
+                    result.asNative = (cast(long) byteArray.ptr[0] << 56);
                 }
                 else
                 {
-                    result.asNative = (cast(long) byteArray[0]);
+                    result.asNative = (cast(long) byteArray.ptr[0]);
                 }
                 return result;
             }
@@ -102,29 +102,29 @@ pure nothrow @safe @nogc:
             switch (v3)
             {
             case 8:
-                tmp |= ((cast(long) byteArray[8]) << 7 * (v3 - 8));
+                tmp |= ((cast(long) byteArray.ptr[8]) << 7 * (v3 - 8));
                 goto case 7;
             case 7:
-                tmp |= ((cast(long) byteArray[7] & 0x7FUL) << 7 * (v3 - 7));
+                tmp |= ((cast(long) byteArray.ptr[7] & 0x7FUL) << 7 * (v3 - 7));
                 goto case 6;
             case 6:
-                tmp |= ((cast(long) byteArray[6] & 0x7FUL) << 7 * (v3 - 6));
+                tmp |= ((cast(long) byteArray.ptr[6] & 0x7FUL) << 7 * (v3 - 6));
                 goto case 5;
             case 5:
-                tmp |= ((cast(long) byteArray[5] & 0x7FUL) << 7 * (v3 - 5));
+                tmp |= ((cast(long) byteArray.ptr[5] & 0x7FUL) << 7 * (v3 - 5));
                 goto case 4;
             case 4:
-                tmp |= ((cast(long) byteArray[4] & 0x7FUL) << 7 * (v3 - 4));
+                tmp |= ((cast(long) byteArray.ptr[4] & 0x7FUL) << 7 * (v3 - 4));
                 goto case 3;
             case 3:
-                tmp |= ((cast(long) byteArray[3] & 0x7FUL) << 7 * (v3 - 3));
+                tmp |= ((cast(long) byteArray.ptr[3] & 0x7FUL) << 7 * (v3 - 3));
                 goto case 2;
             case 2:
-                tmp |= ((cast(long) byteArray[2] & 0x7FUL) << 7 * (v3 - 2));
+                tmp |= ((cast(long) byteArray.ptr[2] & 0x7FUL) << 7 * (v3 - 2));
                 goto case 1;
             case 1:
-                tmp |= ((cast(long) byteArray[1] & 0x7FUL) << 7 * (v3 - 1));
-                tmp |= ((cast(long) byteArray[0] & 0x7FUL) << 7 * (v3 - 0));
+                tmp |= ((cast(long) byteArray.ptr[1] & 0x7FUL) << 7 * (v3 - 1));
+                tmp |= ((cast(long) byteArray.ptr[0] & 0x7FUL) << 7 * (v3 - 0));
                 break;
             default:
                 assert(0);
