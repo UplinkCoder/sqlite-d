@@ -42,6 +42,23 @@ struct WritableDatabase {
 
 	}
 
+	static const(ubyte[]) headerBytes(T)(T value) const pure {
+		return getTypeCode(value).byteArray;
+	}
+
+	static ubyte[] dataBytes(T)(T value) const pure {
+		import std.traits : isIntegral;
+		static if (isIntegral!(typeof(value))) {
+		uint len = sizeInBytes(value);
+			return bigEndian(value).asArray[value.sizeof - len .. value.sizeof];
+		} else static if (is(typeof(value) == ubyte[])) {
+			return value;
+		} else static if (is(typeof(value) == string)) {
+			return cast(ubyte[])value;
+		} else
+			static assert (0, "no dataBytes overload for: " ~ T.stringof);
+	}
+
 //	db.table("mytable").insertRow("value",12);
 
 	static ubyte[] rowBytes(T...)(T values) pure {
@@ -49,21 +66,13 @@ struct WritableDatabase {
 		uint headerOffset;
 		
 		foreach(v;values) {
-			pageContent ~= getTypeCode(v).byteArray;
+			pageContent ~= headerBytes(v);
 		}
 		
 		headerOffset = cast(uint)pageContent.length;
 		
 		foreach(v;values) {
-			import std.traits : isIntegral;
-			static if (isIntegral!(typeof(v))) {
-				uint len = sizeInBytes(v);
-				pageContent ~= bigEndian(v).asArray[v.sizeof - len .. v.sizeof];
-			} else static if (is(typeof(v) == ubyte[])) {
-				pageContent ~= v;
-			} else static if (is(typeof(v) == string)) {
-				pageContent ~= cast(ubyte[])v;
-			}
+			pageContent ~= dataBytes(v);
 		}
 		
 		return pageContent;
@@ -135,9 +144,9 @@ struct WritableDatabase {
 			return VarInt(bigEndian!long(0));
 		} else static if (is(T == ubyte[])) {
 			return	VarInt(bigEndian!long(t.length*2 + 12));
-		} else static if (is (T == string)) {
+		} else static if (is (T == string) {
 			return	VarInt(bigEndian!long(t.length*2 + 13));
-		} else static if (isIntegral!T)  {
+		} else static if (isIntegral!T) {
 			// The oblivous optimisation is to mask the sign first!
 			// and then just check the abs
 			// check if this makes things faster (it should!)
@@ -168,4 +177,3 @@ struct WritableDatabase {
 	static assert (getTypeCode(128) == VarInt(bigEndian!long(2)));
 	static assert (getTypeCode(cast(ubyte[])[]) == VarInt(bigEndian!long(12)));
 }
-

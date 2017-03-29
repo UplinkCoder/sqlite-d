@@ -776,8 +776,8 @@ static Database.Payload extractPayload(const ubyte[] startPayload,
 			break;
 		case typeof(typeCode).float64:
 			if (!__ctfe) {
-				p.float64 = *cast(double*) startPayload;
-				assert(0, "Not supported at runtime either it's BigEndian :)");
+				p.float64 = cast(double) (*cast(BigEndian!long*) startPayload);
+                break;
 			} else
 				assert(0, "not supporeted at CTFE yet");
 		//	break;
