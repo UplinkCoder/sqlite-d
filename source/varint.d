@@ -15,22 +15,21 @@ pure nothrow @safe @nogc:
     {
         //FIXME the constructor does not work for value bigger then uint.max;
         auto len = lengthInVarInt(value);
-        ubyte[9] tmp;
         long beValue = value.asBigEndian;
 
         auto _len = len;
         while (_len--)
         {
-            tmp[_len] = (beValue & 0x7f) | 0x80;
+            _storage[_len] = (beValue & 0x7f) | 0x80;
             beValue >>= 7;
         }
-        tmp[len - 1] &= 0x7f;
+        _storage[len - 1] &= 0x7f;
 
-        byteArray = tmp[0 .. len];
+        byteArray = _storage[0 .. len];
     }
 
     const ubyte[] byteArray;
-
+    ubyte[9] _storage;
     alias toBeLong this;
 
     //TODO FIXME toBeLong does not correctly convert negative Numbers
