@@ -11,7 +11,7 @@ enum unrolled = true;
 struct VarInt
 {
 pure nothrow @safe @nogc:
-    this(BigEndian!long value)
+    this(BigEndian!long value) @trusted
     {
         //FIXME the constructor does not work for value bigger then uint.max;
         auto len = lengthInVarInt(value);
@@ -20,10 +20,10 @@ pure nothrow @safe @nogc:
         auto _len = len;
         while (_len--)
         {
-            _storage[_len] = (beValue & 0x7f) | 0x80;
+            _storage.ptr[_len] = (beValue & 0x7f) | 0x80;
             beValue >>= 7;
         }
-        _storage[len - 1] &= 0x7f;
+        _storage.ptr[len - 1] &= 0x7f;
 
         byteArray = _storage[0 .. len];
     }
