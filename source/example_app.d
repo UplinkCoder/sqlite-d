@@ -12,7 +12,7 @@ import std.range : join, takeOne;
 //import std.typecons : tuple;
 static immutable db4 = cast(immutable) Database(cast(ubyte[]) import("test4.s3db"), "");
 
-int main(string[] args) {
+int main_(string[] args) {
 	string filename = (args.length > 1 ? args[1] : "views/test-2.3.sqlite");
 	auto pageNr = (args.length > 2 ? parse!(int)(args[2]) : 0);
 	writefln("opening file %s", filename); 
@@ -24,7 +24,7 @@ int main(string[] args) {
 	schemas = readRows!(r => r.deserialize!(Database.MasterTableSchema))(db.rootPage, db.pages);
 	if (pageNr) {
 		uint x;
-		foreach(row;Table(db.pages, cast(RootPage)pageNr)) {
+		foreach(row;Table(db.pages, cast(uint)pageNr)) {
 //			row.column(0).apply!writeln;
 //			foreach(col;row.columns) {
 //				col!(pl => pl.writeln);

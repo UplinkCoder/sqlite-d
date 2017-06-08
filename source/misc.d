@@ -21,10 +21,10 @@ struct_type deserialize(struct_type)(Database.Row r) if (is(struct_type == struc
 }
 
 import std.typecons;
-alias RootPage = Typedef!(uint,uint.init,"rootPage");
+
 struct Table {
 	const Database.PageRange pages;
-	const RootPage rootPage;
+	const uint rootPage;
 
 	int opApply(scope int delegate(const Database.Row r) dg) {
 		readRowDg!dg(this);
@@ -43,7 +43,7 @@ struct Table {
 }
 
 Table table(const Database db, in string tableName) pure {
-	RootPage rootPage;
+	uint rootPage;
 
 	readRows!(
 		(r) {

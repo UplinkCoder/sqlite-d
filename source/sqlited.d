@@ -95,7 +95,9 @@ struct Database {
 			}
 
 			this(VarInt v) pure nothrow {
-				long _v = v;
+				long _v = v; // this could be an int
+                                             // also the varint handling would not need to swap 8 bytes
+
 				if (_v > 11) {
 					if (_v & 1) {
 						type = SerialTypeCode.SerialTypeCodeEnum._string;
@@ -105,44 +107,11 @@ struct Database {
 						length = (_v - 12) / 2;
 					}
 				} else {
+					static immutable uint[11] lengthTbl = [0, 1, 2, 3, 4, 6, 8, 0, 0, -1, -1];
 					type = cast(SerialTypeCodeEnum) _v;
-					final switch (type) with (SerialTypeCodeEnum) {
-						case NULL:
-							length = 0;
-							break;
-						case int8:
-							length = 1;
-							break;
-						case int16:
-							length = 2;
-							break;
-						case int24:
-							length = 3;
-							break;
-						case int32:
-							length = 4;
-							break;
-						case int48:
-							length = 6;
-							break;
-						case int64:
-							length = 8;
-							break;
-						case float64:
-							length = 8;
-							break;
-						case bool_false:
-							length = 0;
-							break;
-						case bool_true:
-							length = 0;
-							break;
-						case blob:
-							assert(0, "SerialType Blob needs an explicit size");
-						case _string:
-							assert(0, "SerialType String needs an explicit size");
-					}
+					length = lengthTbl[_v];
 				}
+
 			}
 
 			SerialTypeCodeEnum type;
@@ -739,7 +708,7 @@ static Database.Payload extractPayload(
 		overflowInfo.pageSlice = overflowInfo.pageSlice[_length .. $];
 
 		if (overflowInfo.pageSlice.length == uint.sizeof) {
-			assert(0, "I do not expect us to ever get here\n"
+			assert(0, "I do not expect us to ever get here\n" ~
 				"If we ever do, uncomment the two lines below and delete this assert");
 		//		overflowInfo.nextPageIdx = BigEndian(overflowInfo.pageSlice[0 .. uint.sizeof]);
 		//		overflowInfo.gotoNextPage(pages);

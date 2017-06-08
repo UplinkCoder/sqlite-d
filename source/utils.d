@@ -44,6 +44,7 @@ struct BigEndian(T) {
 		this.asNative = val.asNative;
 		return this;
 	}
+
 	import std.traits : isIntegral;
 	BigEndian!T opAssign(U)(U val) if(!is(U.isBigEndian) && isIntegral!U) {
 		assert(val <= T.max && val >= T.min);
@@ -68,13 +69,13 @@ struct BigEndian(T) {
 				enum _2066_cannot_handle_swapEndian = true;
 				static if (_2066_cannot_handle_swapEndian) {
 					static if (U.sizeof == 8) {
-						return (((val & 0x00000000000000ffUL) << 56UL) | 
-							((val  & 0x000000000000ff00UL) << 40UL) | 
-							((val  & 0x0000000000ff0000UL) << 24UL) | 
-							((val  & 0x00000000ff000000UL) <<  8UL) | 
-							((val  & 0x000000ff00000000UL) >>  8UL) | 
-							((val  & 0x0000ff0000000000UL) >> 24UL) | 
-							((val  & 0x00ff000000000000UL) >> 40UL) | 
+						return (((val & 0x00000000000000ffUL) << 56UL)  |
+							((val  & 0x000000000000ff00UL) << 40UL) |
+							((val  & 0x0000000000ff0000UL) << 24UL) |
+							((val  & 0x00000000ff000000UL) <<  8UL) |
+							((val  & 0x000000ff00000000UL) >>  8UL) |
+							((val  & 0x0000ff0000000000UL) >> 24UL) |
+							((val  & 0x00ff000000000000UL) >> 40UL) |
 							((val  & 0xff00000000000000UL) >> 56UL)
 						);
 					} else static if (U.sizeof == 4) {
