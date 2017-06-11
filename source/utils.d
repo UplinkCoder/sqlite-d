@@ -15,7 +15,7 @@ struct BigEndian(T) {
 	T asNative;
 	alias asBigEndian this;
 	pure nothrow @safe @nogc :
-	@property T asBigEndian() {
+	@property T asBigEndian() const {
 		return swapIfNeeded(asNative);
 	}
 	
@@ -58,8 +58,7 @@ struct BigEndian(T) {
 	}
 
 	static U swapIfNeeded (U)(U val) {
-		import std.bitmanip:swapEndian;
-		
+
 		version(BigEndian) {
 			return val;
 		} else {
@@ -92,6 +91,7 @@ struct BigEndian(T) {
 								assert(0, "cannot swap this byteSize");
 					}
 				} else {
+					import std.bitmanip:swapEndian;
 					return swapEndian(val);
 				}
 			}
