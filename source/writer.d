@@ -42,13 +42,12 @@ struct WritableDatabase {
 
 	}
 
-	static const(ubyte[]) headerBytes(T)(T value) const pure {
+	static const(ubyte[]) headerBytes(T)(T value) pure {
 		return getTypeCode(value).byteArray;
 	}
 
-	static ubyte[] dataBytes(T)(T value) const pure {
-		import std.traits : isIntegral;
-		static if (isIntegral!(typeof(value))) {
+	static ubyte[] dataBytes(T)(T value) pure {
+		static if (__traits(isIntegral, (typeof(value)))) {
 		uint len = sizeInBytes(value);
 			return bigEndian(value).asArray[value.sizeof - len .. value.sizeof];
 		} else static if (is(typeof(value) == ubyte[])) {
@@ -139,14 +138,13 @@ struct WritableDatabase {
 	}
 
 	static VarInt getTypeCode(T)(T t) pure {
-		import std.traits;
 		static if (is(T == typeof(null))) {
 			return VarInt(bigEndian!long(0));
 		} else static if (is(T == ubyte[])) {
 			return	VarInt(bigEndian!long(t.length*2 + 12));
-		} else static if (is (T == string) {
+		} else static if (is (T == string)) {
 			return	VarInt(bigEndian!long(t.length*2 + 13));
-		} else static if (isIntegral!T) {
+		} else static if (__traits(isIntegral, T)) {
 			// The oblivous optimisation is to mask the sign first!
 			// and then just check the abs
 			// check if this makes things faster (it should!)
@@ -164,7 +162,7 @@ struct WritableDatabase {
 				return VarInt(bigEndian!long(6));
 			} else 
 				assert(0);
-		} else static if (isFloatingPoint!T) {
+		} else static if (__traits(isFloatingPoint, T)) {
 			return VarInt(bigEndian!long(7));
 		} else static if (is(T == bool)) {
 			return t ? VarInt(bigEndian!long(9)) : VarInt(bigEndian!long(8));
