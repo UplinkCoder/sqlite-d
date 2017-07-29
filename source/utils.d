@@ -16,15 +16,15 @@ struct BigEndian(T) {
 	alias asBigEndian this;
 
 pure nothrow @safe :
-	@property ubyte[] asArray() const {
+	@property auto asArray() const {
 		alias staticArrayType = ubyte[T.sizeof];
-		ubyte[] result = staticArrayType.init;
+		staticArrayType result = staticArrayType.init;
 
 		foreach(i;0 .. T.sizeof) {
 			result[i] = ((asNative >> i*8) & 0xff);
 		}
 
-		return result;
+		return result.dup;
 	}
 
 @nogc :
