@@ -763,13 +763,13 @@ static Database.Payload extractPayload(const ubyte[] startPayload,
 			p.int16 = *cast(BigEndian!short*) startPayload;
 			break;
 		case typeof(typeCode).int24:
-			p.int24 = (*cast(BigEndian!int*) startPayload) & 0xfff0;
+			p.int24 = (*cast(BigEndian!int*) startPayload) & 0xffff_ff;
 			break;
 		case typeof(typeCode).int32:
 			p.int32 = *cast(BigEndian!int*) startPayload;
 			break;
 		case typeof(typeCode).int48:
-			p.int48 = (*cast(BigEndian!long*) startPayload) & 0xffffff00;
+			p.int48 = (*cast(BigEndian!long*) startPayload) & 0xffff_ffff_ffff;
 			break;
 		case typeof(typeCode).int64:
 			p.int64 = *cast(BigEndian!long*) startPayload;
