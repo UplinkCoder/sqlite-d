@@ -7,9 +7,24 @@ auth_srid INTEGER NOT NULL,
 ref_sys_name VARCHAR(256),
 proj4text VARCHAR(2048) NOT NULL),
 */
-
+import std.algorithm;
 alias lengthType = uint;
 pure :
+uint countUntil(SR, T...)(SR s, T matches)
+{
+	uint count = 0;
+	foreach (c;s)
+	{
+		foreach(m;matches)
+		{
+			if (m == c) 
+				return count;
+		}
+		++count;
+	}
+	return count;
+}
+
 auto getDelim(char c) {
 	switch(c) {
 		case '"' :
@@ -25,7 +40,6 @@ auto getDelim(char c) {
 	}
 }
 import sqlstuff;
-import std.algorithm;
 void skipWhiteSpace(string _string, uint* pos) {
 
 	import std.ascii : isWhite;
