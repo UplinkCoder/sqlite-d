@@ -14,7 +14,7 @@ q{CREATE TABLE `veryveryveryveryveryveryveryveryveryveryveryveryveryveryveryvery
 	`vvvvvvvvvveeeeeeeerrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrryyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyylllllllloooooooooooooooooooooooooooonnnnnnnnnnnnnnnngggggggggggggggggggvvvvvvvvvvvvvvvvffffffffffffffffffffiiiiiiiiiiieeeeeeeeeeeeeeeeellllllllllllllddddddddddddddddddddddnnnnnnnnnnnaaaaaaaaaaaaammmmmmmmmmmmmmmmeeeeeeeeeeeeeeeeee`	INTEGER,
 	`Field2`	INTEGER
 )};
-static immutable test_s3db = cast(immutable)Database(cast(immutable ubyte[]) import("test.s3db"));
+static immutable test_s3db = cast(immutable)Database(cast(ubyte[]) import("test.s3db"));
 static immutable Database.MasterTableSchema[] schemas = readRows!(r => r.deserialize!(Database.MasterTableSchema))(test_s3db.rootPage, test_s3db.pages);
 static assert(schemas[2].sql==long_create_table);
 

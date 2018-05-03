@@ -162,7 +162,7 @@ RR readRows(alias rowHandler, RR = rowHandlerReturnType!(rowHandler)[])(const Da
 
 
 /// handlePage is used to itterate over interiorPages transparently
-void readRows(alias rowHandler,bool writable = false, RR)(const Database.BTreePage page,
+void readRows(alias rowHandler, bool writable = false, RR) (const Database.BTreePage page,
 	const Database.PageRange pages,  ref RR returnRange) {
 	alias hrt = rowHandlerReturnType!(rowHandler);
 	alias defaultReturnRangeType = hrt[];
