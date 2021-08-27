@@ -18,13 +18,13 @@ struct BigEndian(T) {
 	@property T asBigEndian() {
 		return swapIfNeeded(asNative);
 	}
-	
+
 	@property asBigEndian(U)(U val) if(is(U == T)) {
 		return asNative = swapIfNeeded(val);
 	}
-	
+
 	alias isBigEndian = void;
-	
+
 	this (T val) {
 		static if (is(T.isBigEndian)) {
 			this.asNative = val.asNative;
@@ -36,10 +36,10 @@ struct BigEndian(T) {
 	this(const ubyte[] _array) @trusted {
 		assert(T.sizeof == _array.length);
 		foreach(i;0 .. T.sizeof) {
-			asNative |= (_array[i] << i*8UL); 
+			asNative |= (_array[i] << i*8UL);
 		}
 	}
-	
+
 	BigEndian!T opAssign(BigEndian!T val) {
 		this.asNative = val.asNative;
 		return this;
@@ -59,14 +59,14 @@ struct BigEndian(T) {
 
 	static U swapIfNeeded (U)(U val) {
 		import std.bitmanip:swapEndian;
-		
+
 		version(BigEndian) {
 			return val;
 		} else {
 			static if (is(U.isBigEndian)) {
 				return val;
 			} else {
-				enum _2066_cannot_handle_swapEndian = true;
+				enum _2066_cannot_handle_swapEndian = false;
 				static if (_2066_cannot_handle_swapEndian) {
 					static if (U.sizeof == 8) {
 						return (((val & 0x00000000000000ffUL) << 56UL)  |
@@ -116,7 +116,7 @@ T[] toArray(T)(const ubyte[] _array, const size_t size) {
 	if (__ctfe) {
 		T[] result;
 		alias sliceType = typeof(_array[0 .. T.sizeof]);
-		
+
 		result.length = size;
 
 		foreach(i; 0 .. size) {
@@ -184,7 +184,7 @@ struct SkipArray(T) if (isRandomAccessRange!(ElementType!T)) {
 	@property const(size_t) length() const pure {
 		return cast(const) _length;
 	}
-	
+
 	auto opOpAssign (string op)(const T rhs) {
 		static if (op == "~") {
 			arrays ~= rhs;
@@ -193,7 +193,7 @@ struct SkipArray(T) if (isRandomAccessRange!(ElementType!T)) {
 			assert(0, "Operator " ~ op ~ " not supported");
 		}
 	}
-	
+
 	const auto opIndex(const size_t idx) {
 		assert(idx < length);
 		size_t currentPos;
@@ -229,7 +229,6 @@ unittest {
 	auto arr = skipArray([["Hello"]]);
 	arr ~= [["beautiful"], ["world"]];
 	assert(arr.length == 3);
-	
 }
 
 //TODO implement this!
