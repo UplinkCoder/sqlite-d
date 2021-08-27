@@ -125,19 +125,19 @@ template rowHandlerReturnType(alias rowHandler) {
 	}
 }
 
-template pageHandlerRetrunType(alias pageHandler) {
+template pageHandlerReturnType(alias pageHandler) {
 	alias typePP = pageHandlerTypePP!pageHandler;
 	alias typeP = pageHandlerTypeP!pageHandler;
 
 	static if (is(typePP)) {
-		alias pageHandlerRetrunType = typePP;
+		alias pageHandlerReturnType = typePP;
 	} else static if (is(typeP)) {
-		alias pageHandlerRetrunType = typeP;
+		alias pageHandlerReturnType = typeP;
 	} else {
 		static assert(0, "pageHandler has to be callable with (BTreePage) or (BTreePage, PageRange)" ~ typeof(pageHandler).stringof);
 	}
 }
-static assert (is(pageHandlerRetrunType!((page, pages) => page)));
+static assert (is(pageHandlerReturnType!((page, pages) => page)));
 
 auto readRows(alias RowHandler)(const Table table) {
 	return readRows!(RowHandler)(table.pages[cast(uint)table.rootPage], table.pages);

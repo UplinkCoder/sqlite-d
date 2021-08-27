@@ -53,9 +53,9 @@ struct Database {
 			assert(pageNumber <= numberOfPages,
 				"Attempting to go to invalid page");
 
-			const size_t pageBegin = 
+			const size_t pageBegin =
 				(pageSize * pageNumber);
-			const size_t pageEnd = 
+			const size_t pageEnd =
 				(pageSize * pageNumber) + usablePageSize;
 
 			return BTreePage(data[pageBegin .. pageEnd], pageNumber ? 0 : 100);
@@ -107,7 +107,10 @@ struct Database {
 						length = (_v - 12) / 2;
 					}
 				} else {
-					static immutable uint[11] lengthTbl = [0, 1, 2, 3, 4, 6, 8, 0, 0, -1, -1];
+					static immutable uint[12] lengthTbl = [0,  1,  2,  3,
+                                                           4,  6,  8,  8,
+                                                           0,  0, -1, -1
+                                                          ];
 					type = cast(SerialTypeCodeEnum) _v;
 					length = lengthTbl[_v];
 				}
@@ -512,7 +515,7 @@ struct Database {
 					BTreePageHeader result;
 
 					result._pageType = cast(BTreePageType)_array[0];
-					result.firstFreeBlock = _array[1 .. 3]; 
+					result.firstFreeBlock = _array[1 .. 3];
 					result.cellsInPage = _array[3 .. 5];
 					result.startCellContantArea = _array[5 .. 7];
 					result.fragmentedFreeBytes = _array[7];
@@ -594,7 +597,7 @@ struct Database {
 				case emptyPage:
 				case tableInteriorPage:
 					assert(0, "page has no payload");
-					
+
 				case indexInteriorPage:
 					return VarInt(page[cp + uint.sizeof .. $]);
 				case indexLeafPage:
@@ -622,7 +625,7 @@ struct Database {
 			const ubyte[] payloadHeader;
 			uint offset;
 			uint _length;
-			 
+
 			void popFront() pure {
 				assert(offset < payloadHeader.length);
 				offset += _length;
@@ -650,22 +653,22 @@ struct OverflowInfo {
 
 	this(const ubyte[] payloadStart, int offset, const uint payloadSize, const Database.PageRange pages, const uint payloadHeaderSize, const Database.BTreePageType pageType) pure {
 		import std.algorithm : min;
-		
+
 		uint x;
 		if (isIndex(pageType)) {
 			x = ((pages.usablePageSize - 12) * 32 / 255) - 23;
 		} else {
-			x = pages.usablePageSize - 35; 
+			x = pages.usablePageSize - 35;
 		}
-		
+
 		if (payloadSize > x) {
 			auto m = ((pages.usablePageSize - 12) * 32 / 255) - 23;
 			auto k = m + ((payloadSize - m) % (pages.usablePageSize - 4));
 
 			auto payloadOnFirstPage = (k <= x ? k : m) - payloadHeaderSize;
-	
+
 			nextPageIdx = BigEndian!uint(payloadStart[payloadOnFirstPage .. payloadOnFirstPage + uint.sizeof]);
-		
+
 			if(offset > payloadOnFirstPage) {
 				offset -= payloadOnFirstPage;
 				gotoNextPage(pages);
@@ -699,7 +702,6 @@ static Database.Payload extractPayload(
 	const Database.Payload.SerialTypeCode typeCode,
 	const Database.PageRange pages,
 	) pure {
-	
 
 	if (overflowInfo.pageSlice.length >= typeCode.length) {
 		auto _length = cast(uint) typeCode.length;
@@ -719,14 +721,14 @@ static Database.Payload extractPayload(
 		alias et = Database.Payload.SerialTypeCode.SerialTypeCodeEnum;
 		// let's assume SQLite is sane and does not split primitive types in the middle
 		assert(typeCode.type == et.blob || typeCode.type == et._string);
-		
+
 		auto remainingBytesOfPayload = cast(uint) typeCode.length;
 		ubyte[] _payloadBuffer;
-		
+
 		for (;;) {
 
 			import std.algorithm : min;
-			
+
 			auto readBytes = cast(uint) min(overflowInfo.pageSlice.length,
 				remainingBytesOfPayload);
 
@@ -897,7 +899,7 @@ unittest {
 }
 
 bool isIndex(const Database.BTreePage.BTreePageType pageType) pure {
-	return ((pageType & 2) ^ 2) == 0; 
+	return ((pageType & 2) ^ 2) == 0;
 }
 
 static assert(isIndex(Database.BTreePageType.indexLeafPage) && isIndex(Database.BTreePageType.indexInteriorPage) && !isIndex(Database.BTreePageType.tableLeafPage));
